@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* Dark-mode chart chrome + status palette, from the dataviz skill's
+     validated reference (references/palette.md) — dark surfaces,
+     ink, and status roles are used as-is; the app chrome tints the
+     dark chart surface slightly toward blue for a "watchdog" feel. */
+  --color-vidur-bg: #0d0d0d;
+  --color-vidur-surface: #1a1a19;
+  --color-vidur-surface-raised: #232322;
+  --color-vidur-border: #2c2c2a;
+  --color-vidur-text: #ffffff;
+  --color-vidur-text-muted: #c3c2b7;
+  --color-vidur-muted: #898781;
+  --color-vidur-accent: #3987e5;
+  --color-vidur-accent-muted: #184f95;
+  --color-vidur-good: #0ca30c;
+  --color-vidur-warn: #fab219;
+  --color-vidur-serious: #ec835a;
+  --color-vidur-bad: #d03b3b;
+  --color-vidur-info: #3987e5;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-vidur-bg);
+  color: var(--color-vidur-text);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}

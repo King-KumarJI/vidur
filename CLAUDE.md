@@ -25,6 +25,14 @@ VIDUR = Virtual Intelligent Development Understanding & Reasoning, an AI-powered
 - `backend/app/api/v1/routes/` — not yet built
 - `frontend/` — dashboard UI, not yet started
 
+## Frontend stack & rules
+
+- React + Vite + TypeScript + Tailwind CSS. No CSS-in-JS, no component library beyond what Tailwind covers unless explicitly approved.
+- Charts: Recharts (for Article 18 analytics — Project Health Score, Inspection History, Technical Debt, Module Complexity, Bug Trends, API Reliability, Test Coverage).
+- API client: a single typed client module in `frontend/src/services/` wrapping `fetch`, built from the FastAPI OpenAPI schema at the backend's `/openapi.json`. Every request must attach the `X-Project-Id` header (see `DEFAULT_PROJECT_ID_HEADER` in `backend/app/config/settings.py`) from one central place — never hard-code the header string per call site.
+- State: React state/hooks + context for the active project selection. No Redux/Zustand unless the app genuinely outgrows context.
+- Pages needed, one per backend engine surfaced through the API Layer: Dashboard/health overview, Project switcher, Inspection Reports, AI Reasoning insights, NLP findings, ML Prediction risk, Deep Learning Vision regressions (must handle its Major-flag-off 403 gracefully, not crash), Memory/history, Feature Flags/settings.
+- Same completion rules as the backend: no placeholder components, no `TODO`, every page wired to the real API client (not mock data), verified before moving to the next file.
 ## Build & verify
 
 ```

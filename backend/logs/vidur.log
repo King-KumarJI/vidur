@@ -1113,3 +1113,124 @@
 {"timestamp": "2026-08-01T10:34:02.017044+00:00", "level": "ERROR", "logger": "vidur.memory.record_store", "message": "Failed to list memory records for project_id=demo-project: simulated failure", "module": "record_store", "function": "list_records", "line": 110}
 {"timestamp": "2026-08-01T10:34:02.032781+00:00", "level": "ERROR", "logger": "vidur.memory.semantic_index", "message": "Failed to index memory record rec-1 for project_id=demo-project: simulated chroma failure", "module": "semantic_index", "function": "index", "line": 58}
 {"timestamp": "2026-08-01T10:34:02.033785+00:00", "level": "ERROR", "logger": "vidur.memory.semantic_index", "message": "Semantic recall query failed for project_id=demo-project: simulated chroma failure", "module": "semantic_index", "function": "query", "line": 85}
+2026-08-01 16:35:14 | INFO     | vidur.main | VIDUR starting up (version=0.1.0)
+2026-08-01 16:35:20 | ERROR    | vidur.db.mongodb | MongoDB connection failed: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 5000.0ms, connectTimeoutMS: 5000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a6dd2eac3787d8e9649d459, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 5000.0ms, connectTimeoutMS: 5000.0ms)')>]>
+2026-08-01 16:35:20 | WARNING  | vidur.main | MongoDB unavailable at startup, continuing without it: Unable to connect to MongoDB: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 5000.0ms, connectTimeoutMS: 5000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a6dd2eac3787d8e9649d459, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 5000.0ms, connectTimeoutMS: 5000.0ms)')>]>
+2026-08-01 16:35:28 | ERROR    | vidur.db.chromadb | ChromaDB connection failed: Could not connect to a Chroma server. Are you sure it is running?
+2026-08-01 16:35:28 | WARNING  | vidur.main | ChromaDB unavailable at startup, continuing without it: Unable to connect to ChromaDB: Could not connect to a Chroma server. Are you sure it is running?
+2026-08-01 16:38:18 | ERROR    | vidur.memory.engine | Failed to load health score trend for project_id=demo-project: MongoDB client is not initialized. Call connect_to_mongo() at startup.
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_when_feature_f0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=80.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_for_invalid_pr0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=80.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=project-a root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_for_mismatched0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=project-a health_score=80.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_reasoning_re0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=80.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.ai_reasoning.engine | AI reasoning started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_reasoning_re0
+2026-08-01 16:58:27 | INFO     | vidur.ai_reasoning.engine | AI reasoning completed for project_id=demo-project recommendations=1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_normalizes_project_id0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=80.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.ai_reasoning.engine | AI reasoning started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_normalizes_project_id0
+2026-08-01 16:58:27 | INFO     | vidur.ai_reasoning.engine | AI reasoning completed for project_id=demo-project recommendations=1
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison started for project_id=demo-project baseline=homepage current=homepage
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison started for project_id=demo-project baseline=homepage current=homepage
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison started for project_id=demo-project baseline=homepage current=homepage
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison completed for project_id=demo-project verdict=regression
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison started for project_id=demo-project baseline=homepage current=homepage
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison completed for project_id=demo-project verdict=regression
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison started for project_id=demo-project baseline=homepage current=homepage
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison completed for project_id=demo-project verdict=match
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison started for project_id=demo-project baseline=homepage current=homepage
+2026-08-01 16:58:27 | INFO     | vidur.deep_learning_vision.engine | Visual comparison completed for project_id=demo-project verdict=match
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_completed_re0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_detects_findings_acro0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=0.0 findings=2
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_with_previous_snapsho0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=40.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_with_previous_snapsho0
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=60.0 findings=2
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_normalizes_project_id1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=40.0 findings=1
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_when_feature_f2
+2026-08-01 16:58:27 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_for_invalid_pr2
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=project-a root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_for_mismatched1
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=project-a health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_for_mismatched2
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.ai_reasoning.engine | AI reasoning started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_raises_for_mismatched2
+2026-08-01 16:58:28 | INFO     | vidur.ai_reasoning.engine | AI reasoning completed for project_id=demo-project recommendations=0
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_ml_predictio0
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_ml_predictio0
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction completed for project_id=demo-project failure_probability=0.1298
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_ml_predictio1
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.ai_reasoning.engine | AI reasoning started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_ml_predictio1
+2026-08-01 16:58:28 | INFO     | vidur.ai_reasoning.engine | AI reasoning completed for project_id=demo-project recommendations=0
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_ml_predictio1
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction completed for project_id=demo-project failure_probability=0.1298
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_uses_historical_healt0
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_uses_historical_healt0
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction completed for project_id=demo-project failure_probability=0.1298
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_normalizes_project_id2
+2026-08-01 16:58:28 | INFO     | vidur.inspection_engine.engine | Inspection completed for project_id=demo-project health_score=100.0 findings=0
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_normalizes_project_id2
+2026-08-01 16:58:28 | INFO     | vidur.ml_prediction.engine | ML prediction completed for project_id=demo-project failure_probability=0.1298
+2026-08-01 16:58:28 | WARNING  | vidur.nlp.code_intent_extractor | Skipping unparseable file app/broken.py: invalid syntax (app/broken.py, line 1)
+2026-08-01 16:58:28 | WARNING  | vidur.nlp.code_intent_extractor | Skipping unparseable file app/broken.py: invalid syntax (app/broken.py, line 1)
+2026-08-01 16:58:28 | WARNING  | vidur.nlp.code_intent_extractor | Skipping unparseable file app/broken.py: invalid syntax (app/broken.py, line 1)
+2026-08-01 16:58:28 | INFO     | vidur.nlp.engine | NLP analysis started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_produces_nlp_report0
+2026-08-01 16:58:28 | INFO     | vidur.nlp.engine | NLP analysis completed for project_id=demo-project consistency_findings=0
+2026-08-01 16:58:28 | INFO     | vidur.nlp.engine | NLP analysis started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_includes_semantic_res0
+2026-08-01 16:58:28 | INFO     | vidur.nlp.engine | NLP analysis completed for project_id=demo-project consistency_findings=0
+2026-08-01 16:58:28 | INFO     | vidur.nlp.engine | NLP analysis started for project_id=demo-project root=C:\Users\ka447\AppData\Local\Temp\pytest-of-ka447\pytest-19\test_run_normalizes_project_id3
+2026-08-01 16:58:28 | INFO     | vidur.nlp.engine | NLP analysis completed for project_id=demo-project consistency_findings=0
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=6cac20a7dfa04f5d8871083b70088377 for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording visual_regression memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded visual_regression memory record_id=18825cece6b248d0a3a22c3e99125ada for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=4f8c91b240774a0a90e38985deedcaff for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=94a7d0d2cefb422dbc0b15582f147d1b for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Memory recall started for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Memory recall completed for project_id=demo-project matches=1
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Memory recall started for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Memory recall completed for project_id=demo-project matches=0
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=53949d13dbfb45bd8e7eab162a7cb904 for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording visual_regression memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded visual_regression memory record_id=f3858e20966945b8874c9f94d280894f for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=2d276b4fa0b04793aaa859cbbcd3c6bc for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording visual_regression memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded visual_regression memory record_id=8134e7fbcf944c6ba4a748388b863e41 for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=dd29b7510cdb4df6b8569075c3a6dc63 for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=a8c6c85485d348aeb21dd7afd5a57329 for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording visual_regression memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded visual_regression memory record_id=fd4b31a7a6494ef0855b381444b64f83 for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recording inspection memory for project_id=demo-project
+2026-08-01 16:58:28 | INFO     | vidur.memory.engine | Recorded inspection memory record_id=9de4a3ace9104e8f9536bf47beaaba53 for project_id=demo-project
+2026-08-01 16:58:28 | ERROR    | vidur.memory.record_store | Failed to persist memory record rec-1 for project_id=demo-project: simulated failure
+2026-08-01 16:58:28 | ERROR    | vidur.memory.record_store | Failed to list memory records for project_id=demo-project: simulated failure
+2026-08-01 16:58:28 | ERROR    | vidur.memory.semantic_index | Failed to index memory record rec-1 for project_id=demo-project: simulated chroma failure
+2026-08-01 16:58:28 | ERROR    | vidur.memory.semantic_index | Semantic recall query failed for project_id=demo-project: simulated chroma failure
+2026-08-01 17:11:25 | INFO     | vidur.main | VIDUR starting up (version=0.1.0)
+2026-08-01 17:11:25 | INFO     | vidur.db.mongodb | MongoDB connection established
+2026-08-01 17:11:25 | INFO     | vidur.db.chromadb | ChromaDB connection established
+2026-08-01 17:11:25 | INFO     | vidur.db.mongodb | MongoDB connection closed
+2026-08-01 17:11:25 | INFO     | vidur.db.chromadb | ChromaDB connection released
+2026-08-01 17:11:25 | INFO     | vidur.main | VIDUR shut down
+2026-08-01 17:12:32 | INFO     | vidur.main | VIDUR starting up (version=0.1.0)
+2026-08-01 17:12:32 | INFO     | vidur.db.mongodb | MongoDB connection established
+2026-08-01 17:12:33 | INFO     | vidur.db.chromadb | ChromaDB connection established
+2026-08-01 17:14:11 | INFO     | vidur.db.mongodb | MongoDB connection closed
+2026-08-01 17:14:11 | INFO     | vidur.db.chromadb | ChromaDB connection released
+2026-08-01 17:14:11 | INFO     | vidur.main | VIDUR shut down

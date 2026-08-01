@@ -7,3 +7,6 @@ pymongo==4.9.1
 chromadb==0.5.5
 python-dotenv==1.0.1
 python-multipart==0.0.9
+pytest
+httpx
+pytest-asyncio

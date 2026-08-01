@@ -21,13 +21,15 @@ from app.core.project_isolation import (
 )
 
 # Routes that do not require an active project context (health checks,
-# project registration/listing itself, API docs).
+# project registration/listing itself, global (non-project-scoped)
+# application configuration, API docs).
 _EXEMPT_PATH_PREFIXES = (
     "/health",
     "/docs",
     "/redoc",
     "/openapi.json",
     f"{settings.API_V1_PREFIX}/projects",
+    f"{settings.API_V1_PREFIX}/config",
 )
 
 

@@ -27,6 +27,7 @@ class FeatureFlag(str, Enum):
 
     # --- Minor Project (baseline, enabled by default) ---
     MINOR_PROJECT_INSPECTION = "MINOR_PROJECT_INSPECTION"
+    MINOR_AI_REASONING = "MINOR_AI_REASONING"
     MINOR_REQUIREMENT_CONSISTENCY = "MINOR_REQUIREMENT_CONSISTENCY"
     MINOR_ARCHITECTURE_CONSISTENCY = "MINOR_ARCHITECTURE_CONSISTENCY"
     MINOR_PROJECT_MEMORY = "MINOR_PROJECT_MEMORY"
@@ -44,6 +45,7 @@ class FeatureFlag(str, Enum):
 # default False, in accordance with Article 41 and Article 42.
 _DEFAULT_FLAG_STATE: Dict["FeatureFlag", bool] = {
     FeatureFlag.MINOR_PROJECT_INSPECTION: True,
+    FeatureFlag.MINOR_AI_REASONING: True,
     FeatureFlag.MINOR_REQUIREMENT_CONSISTENCY: True,
     FeatureFlag.MINOR_ARCHITECTURE_CONSISTENCY: True,
     FeatureFlag.MINOR_PROJECT_MEMORY: True,
@@ -71,6 +73,7 @@ class FeatureFlagSettings(BaseSettings):
     )
 
     MINOR_PROJECT_INSPECTION: bool = True
+    MINOR_AI_REASONING: bool = True
     MINOR_REQUIREMENT_CONSISTENCY: bool = True
     MINOR_ARCHITECTURE_CONSISTENCY: bool = True
     MINOR_PROJECT_MEMORY: bool = True

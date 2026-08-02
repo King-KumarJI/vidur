@@ -32,12 +32,17 @@ from app.core.deep_learning_vision.models import ImageEmbeddingComparisonResult
 
 logger = get_logger("deep_learning_vision.image_embedding_comparator")
 
-#: OpenCLIP model architecture + pretrained-weights tag. ViT-B-32 is
-#: OpenCLIP's standard baseline checkpoint (~350MB, downloaded once and
-#: cached by open_clip/torch) - small enough to run comfortably on CPU
-#: while still producing a well-separated embedding space for detecting
-#: real visual regressions.
-CLIP_MODEL_NAME = "ViT-B-32"
+#: OpenCLIP model architecture + pretrained-weights tag. The "openai"
+#: checkpoint's original weights were trained with the QuickGELU
+#: activation, which OpenCLIP only enables under the
+#: "ViT-B-32-quickgelu" architecture name (confirmed via
+#: open_clip.list_pretrained()) - plain "ViT-B-32" silently loads the
+#: same weights into a mismatched (non-QuickGELU) architecture instead,
+#: degrading embedding quality. ~350MB, downloaded once and cached by
+#: open_clip/torch - small enough to run comfortably on CPU while still
+#: producing a well-separated embedding space for detecting real visual
+#: regressions.
+CLIP_MODEL_NAME = "ViT-B-32-quickgelu"
 CLIP_PRETRAINED_TAG = "openai"
 
 #: CLIP cosine-similarity thresholds. Identical images embed to

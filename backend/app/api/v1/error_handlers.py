@@ -37,6 +37,7 @@ from app.core.project_isolation.exceptions import (
     ProjectIsolationError,
     ProjectNotRegisteredError,
 )
+from app.core.specs.exceptions import InvalidSpecsPayloadError, SpecsDisabledError, SpecsModuleError
 from app.db.exceptions import DatabaseError
 from app.memory.exceptions import InvalidMemoryQueryError, MemoryDisabledError, MemoryModuleError
 
@@ -47,6 +48,7 @@ _DISABLED_ERRORS = (
     MLPredictionDisabledError,
     DeepLearningVisionDisabledError,
     MemoryDisabledError,
+    SpecsDisabledError,
 )
 
 _INVALID_INPUT_ERRORS = (
@@ -60,6 +62,7 @@ _INVALID_INPUT_ERRORS = (
     InvalidLayoutDataError,
     ImageDimensionMismatchError,
     InvalidMemoryQueryError,
+    InvalidSpecsPayloadError,
     ProjectNotRegisteredError,
     CrossProjectAccessError,
 )
@@ -77,6 +80,7 @@ _REGISTERED_BASE_EXCEPTIONS = (
     MLPredictionError,
     DeepLearningVisionError,
     MemoryModuleError,
+    SpecsModuleError,
     ProjectIsolationError,
     DatabaseError,
 )

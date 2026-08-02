@@ -9,6 +9,7 @@ of them via `app.dependency_overrides`.
 """
 
 from app.core.project_isolation import get_current_project_id
+from app.core.specs.storage import SpecsStorage
 from app.services.ai_reasoning_service import AIReasoningService
 from app.services.config_service import ConfigService
 from app.services.db_health_service import DBHealthService
@@ -63,3 +64,7 @@ def get_deep_learning_vision_service() -> DeepLearningVisionService:
 
 def get_memory_service() -> MemoryService:
     return MemoryService()
+
+
+def get_specs_storage() -> SpecsStorage:
+    return SpecsStorage()

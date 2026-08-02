@@ -20,6 +20,7 @@ from app.api.v1.routes import (
     ml_prediction,
     nlp,
     projects,
+    specs,
 )
 
 api_router = APIRouter()
@@ -32,3 +33,4 @@ api_router.include_router(nlp.router)
 api_router.include_router(ml_prediction.router)
 api_router.include_router(deep_learning_vision.router)
 api_router.include_router(memory.router)
+api_router.include_router(specs.router)

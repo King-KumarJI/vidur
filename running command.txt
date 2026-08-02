@@ -1,0 +1,8 @@
+backend:-
+uvicorn app.main:app --port 8080
+
+forntend:-
+npm run dev
+
+docker:-
+docker ps

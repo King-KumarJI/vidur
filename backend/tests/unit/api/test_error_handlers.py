@@ -16,6 +16,7 @@ from app.core.inspection_engine.exceptions import InspectionDisabledError, Inspe
 from app.core.ml_prediction.exceptions import MLPredictionDisabledError
 from app.core.nlp.exceptions import NLPError
 from app.core.project_isolation.exceptions import InvalidProjectIdError, ProjectContextNotSetError
+from app.core.specs.exceptions import InvalidSpecsPayloadError, SpecsDisabledError
 from app.db.exceptions import DatabaseConnectionError
 from app.memory.exceptions import InvalidMemoryQueryError, MemoryDisabledError
 
@@ -44,6 +45,10 @@ def _build_app() -> FastAPI:
     def _raise_memory_disabled():
         raise MemoryDisabledError("disabled")
 
+    @app.get("/raise/specs-disabled")
+    def _raise_specs_disabled():
+        raise SpecsDisabledError("disabled")
+
     @app.get("/raise/invalid-project-id")
     def _raise_invalid_project_id():
         raise InvalidProjectIdError("bad project id")
@@ -59,6 +64,10 @@ def _build_app() -> FastAPI:
     @app.get("/raise/invalid-memory-query")
     def _raise_invalid_memory_query():
         raise InvalidMemoryQueryError("bad query")
+
+    @app.get("/raise/invalid-specs-payload")
+    def _raise_invalid_specs_payload():
+        raise InvalidSpecsPayloadError("bad payload")
 
     @app.get("/raise/project-context-not-set")
     def _raise_context_not_set():
@@ -91,6 +100,7 @@ def test_disabled_errors_map_to_403():
         "/raise/ml-prediction-disabled",
         "/raise/deep-learning-vision-disabled",
         "/raise/memory-disabled",
+        "/raise/specs-disabled",
     ):
         response = client.get(path)
         assert response.status_code == 403, path
@@ -103,6 +113,7 @@ def test_invalid_input_errors_map_to_400():
         "/raise/invalid-inspection-target",
         "/raise/invalid-reasoning-input",
         "/raise/invalid-memory-query",
+        "/raise/invalid-specs-payload",
     ):
         response = client.get(path)
         assert response.status_code == 400, path

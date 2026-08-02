@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from app.core.deep_learning_vision.enums import ComparisonVerdict
 from app.core.deep_learning_vision.models import (
+    ImageEmbeddingComparisonResult,
     LayoutConsistencyIssue,
     LayoutDiffResult,
     PixelDiffResult,
@@ -37,6 +38,7 @@ class VisualComparisonReportGenerator:
         project_id: str,
         baseline_label: str,
         current_label: str,
+        embedding_diff: Optional[ImageEmbeddingComparisonResult],
         pixel_diff: Optional[PixelDiffResult],
         layout_diff: Optional[LayoutDiffResult],
         consistency_issues: List[LayoutConsistencyIssue],
@@ -47,6 +49,8 @@ class VisualComparisonReportGenerator:
         """Assemble the final VisualComparisonReport for one comparison
         run between `baseline_label` and `current_label`."""
         data_sources = []
+        if embedding_diff is not None:
+            data_sources.append("real-screenshot embedding data")
         if pixel_diff is not None:
             data_sources.append("pixel data")
         if layout_diff is not None:
@@ -62,6 +66,7 @@ class VisualComparisonReportGenerator:
             baseline_label=baseline_label,
             current_label=current_label,
             generated_at=generated_at or utc_now(),
+            embedding_diff=embedding_diff,
             pixel_diff=pixel_diff,
             layout_diff=layout_diff,
             consistency_issues=consistency_issues,

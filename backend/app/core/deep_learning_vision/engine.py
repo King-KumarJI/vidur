@@ -2,16 +2,16 @@
 VIDUR Core - Deep Learning Vision
 Submodule: Engine
 Purpose: Orchestrates a full Deep Learning Vision comparison run
-between two caller-supplied VisualSnapshots - pixel diff, layout diff,
-layout consistency checking, and visual regression detection - into a
-single VisualComparisonReport. Enforces the
-MAJOR_DEEP_LEARNING_VISUAL_INSPECTION feature flag (Article 41-44: this
-entire module is a Major/advanced capability, ships disabled by
-default) and Article 21 (Absolute Project Isolation) by requiring and
-binding a valid Project ID for the duration of the run. This module is
-analysis-only: it never captures screenshots or drives a browser
-itself, it only compares whatever image/layout data the caller
-supplies.
+between two caller-supplied VisualSnapshots - real-screenshot embedding
+comparison, pixel diff, layout diff, layout consistency checking, and
+visual regression detection - into a single VisualComparisonReport.
+Enforces the MAJOR_DEEP_LEARNING_VISUAL_INSPECTION feature flag
+(Article 41-44: this entire module is a Major/advanced capability,
+ships disabled by default) and Article 21 (Absolute Project Isolation)
+by requiring and binding a valid Project ID for the duration of the
+run. This module is analysis-only: it never captures screenshots or
+drives a browser itself, it only compares whatever image bytes/pixel/
+layout data the caller supplies.
 """
 
 from typing import List, Optional
@@ -23,9 +23,11 @@ from app.core.deep_learning_vision.exceptions import (
     DeepLearningVisionError,
     InvalidComparisonInputError,
 )
+from app.core.deep_learning_vision.image_embedding_comparator import ImageEmbeddingComparator
 from app.core.deep_learning_vision.layout_consistency_checker import LayoutConsistencyChecker
 from app.core.deep_learning_vision.layout_diff_analyzer import LayoutDiffAnalyzer
 from app.core.deep_learning_vision.models import (
+    ImageEmbeddingComparisonResult,
     LayoutConsistencyIssue,
     LayoutDiffResult,
     PixelDiffResult,
@@ -47,6 +49,7 @@ class DeepLearningVisionEngine:
 
     def __init__(
         self,
+        image_embedding_comparator: Optional[ImageEmbeddingComparator] = None,
         pixel_diff_analyzer: Optional[PixelDiffAnalyzer] = None,
         layout_diff_analyzer: Optional[LayoutDiffAnalyzer] = None,
         layout_consistency_checker: Optional[LayoutConsistencyChecker] = None,
@@ -54,6 +57,7 @@ class DeepLearningVisionEngine:
         report_generator: Optional[VisualComparisonReportGenerator] = None,
         feature_flag_registry: Optional[FeatureFlagRegistry] = None,
     ) -> None:
+        self._image_embedding_comparator = image_embedding_comparator or ImageEmbeddingComparator()
         self._pixel_diff_analyzer = pixel_diff_analyzer or PixelDiffAnalyzer()
         self._layout_diff_analyzer = layout_diff_analyzer or LayoutDiffAnalyzer()
         self._layout_consistency_checker = layout_consistency_checker or LayoutConsistencyChecker()
@@ -138,6 +142,16 @@ class DeepLearningVisionEngine:
         canvas_width: Optional[int],
         canvas_height: Optional[int],
     ) -> VisualComparisonReport:
+        embedding_diff: Optional[ImageEmbeddingComparisonResult] = None
+        if baseline.image_bytes is not None and current.image_bytes is not None:
+            embedding_diff = self._image_embedding_comparator.compare(
+                baseline.image_bytes, current.image_bytes
+            )
+        elif (baseline.image_bytes is None) != (current.image_bytes is None):
+            raise InvalidComparisonInputError(
+                "Both baseline and current must supply image_bytes data, or both must omit it."
+            )
+
         pixel_diff: Optional[PixelDiffResult] = None
         if baseline.image is not None and current.image is not None:
             pixel_diff = self._pixel_diff_analyzer.compare(baseline.image, current.image)
@@ -154,9 +168,9 @@ class DeepLearningVisionEngine:
                 "Both baseline and current must supply layout data, or both must omit it."
             )
 
-        if pixel_diff is None and layout_diff is None:
+        if embedding_diff is None and pixel_diff is None and layout_diff is None:
             raise InvalidComparisonInputError(
-                "At least one of image or layout data must be supplied on both snapshots."
+                "At least one of image_bytes, image, or layout data must be supplied on both snapshots."
             )
 
         consistency_issues: List[LayoutConsistencyIssue] = []
@@ -166,13 +180,14 @@ class DeepLearningVisionEngine:
             )
 
         findings, verdict = self._visual_regression_detector.detect(
-            pixel_diff, layout_diff, consistency_issues
+            embedding_diff, pixel_diff, layout_diff, consistency_issues
         )
 
         return self._report_generator.generate(
             project_id=project_id,
             baseline_label=baseline.label,
             current_label=current.label,
+            embedding_diff=embedding_diff,
             pixel_diff=pixel_diff,
             layout_diff=layout_diff,
             consistency_issues=consistency_issues,

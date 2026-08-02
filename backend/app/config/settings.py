@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     DEFAULT_PROJECT_ID_HEADER: str = "X-Project-Id"
     ENFORCE_PROJECT_ISOLATION: bool = True
 
+    # --- AI Reasoning: local LLM via Ollama ---
+    # Ollama runs as a separate local service (like MongoDB/ChromaDB),
+    # never a pip dependency and never a cloud endpoint - fully
+    # offline and free, per the "Real AI/ML/DL/NLP Upgrade" amendment.
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3"
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, value: str) -> str:

@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 
 from app.core.deep_learning_vision.enums import ComparisonVerdict, LayoutChangeType, VisualRiskLevel
 from app.core.deep_learning_vision.models import (
+    ImageEmbeddingComparisonResult,
     LayoutConsistencyIssue,
     LayoutDiffResult,
     PixelDiffResult,
@@ -42,11 +43,13 @@ class VisualRegressionDetector:
 
     def detect(
         self,
+        embedding_diff: Optional[ImageEmbeddingComparisonResult],
         pixel_diff: Optional[PixelDiffResult],
         layout_diff: Optional[LayoutDiffResult],
         consistency_issues: List[LayoutConsistencyIssue],
     ) -> Tuple[List[VisualRegressionFinding], ComparisonVerdict]:
         findings: List[VisualRegressionFinding] = []
+        findings.extend(self._embedding_diff_findings(embedding_diff))
         findings.extend(self._pixel_diff_findings(pixel_diff))
         findings.extend(self._layout_diff_findings(layout_diff))
         findings.extend(self._consistency_findings(consistency_issues))
@@ -67,6 +70,23 @@ class VisualRegressionDetector:
         if overall_weight >= MINOR_DIFFERENCE_VERDICT_THRESHOLD:
             return ComparisonVerdict.MINOR_DIFFERENCE
         return ComparisonVerdict.MATCH
+
+    @staticmethod
+    def _embedding_diff_findings(
+        embedding_diff: Optional[ImageEmbeddingComparisonResult],
+    ) -> List[VisualRegressionFinding]:
+        if embedding_diff is None or embedding_diff.risk_level.weight < MINIMUM_REPORTED_RISK_LEVEL.weight:
+            return []
+        return [
+            VisualRegressionFinding(
+                category="embedding_diff",
+                risk_level=embedding_diff.risk_level,
+                message=(
+                    f"Real-screenshot comparison ({embedding_diff.method.value}) found a similarity of "
+                    f"{embedding_diff.similarity:.1%}. {embedding_diff.detail}"
+                ),
+            )
+        ]
 
     @staticmethod
     def _pixel_diff_findings(pixel_diff: Optional[PixelDiffResult]) -> List[VisualRegressionFinding]:

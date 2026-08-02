@@ -19,9 +19,12 @@ from app.core.ai_reasoning.drift_reasoner import DriftReasoner
 from app.core.ai_reasoning.exceptions import (
     AIReasoningError,
     InvalidReasoningInputError,
+    OllamaResponseParsingError,
+    OllamaUnavailableError,
     ReasoningDisabledError,
 )
 from app.core.ai_reasoning.issue_correlator import IssueCorrelator
+from app.core.ai_reasoning.llm_recommendation_engine import LLMRecommendationEngine
 from app.core.ai_reasoning.models import ReasoningReport
 from app.core.ai_reasoning.recommendation_engine import RecommendationEngine
 from app.core.ai_reasoning.report_generator import ReasoningReportGenerator
@@ -43,6 +46,7 @@ class AIReasoningEngine:
         debugging_assistant: Optional[DebuggingAssistant] = None,
         drift_reasoner: Optional[DriftReasoner] = None,
         recommendation_engine: Optional[RecommendationEngine] = None,
+        llm_recommendation_engine: Optional[LLMRecommendationEngine] = None,
         report_generator: Optional[ReasoningReportGenerator] = None,
         feature_flag_registry: Optional[FeatureFlagRegistry] = None,
     ) -> None:
@@ -51,6 +55,7 @@ class AIReasoningEngine:
         self._debugging_assistant = debugging_assistant or DebuggingAssistant()
         self._drift_reasoner = drift_reasoner or DriftReasoner()
         self._recommendation_engine = recommendation_engine or RecommendationEngine()
+        self._llm_recommendation_engine = llm_recommendation_engine or LLMRecommendationEngine()
         self._report_generator = report_generator or ReasoningReportGenerator()
         self._feature_flags = feature_flag_registry or feature_flags
 
@@ -117,9 +122,20 @@ class AIReasoningEngine:
         debugging_hypotheses = self._debugging_assistant.generate(findings)
         drift_insight = self._drift_reasoner.reason(findings, dependency_assessments, total_files)
 
-        recommendations = self._recommendation_engine.build(
-            correlation_groups, dependency_assessments, debugging_hypotheses, drift_insight
-        )
+        try:
+            recommendations = self._llm_recommendation_engine.build(
+                correlation_groups, dependency_assessments, debugging_hypotheses, drift_insight
+            )
+            logger.info("AI reasoning recommendations produced via local LLM (Ollama).")
+        except (OllamaUnavailableError, OllamaResponseParsingError) as exc:
+            logger.warning(
+                "LLM-backed reasoning unavailable (%s); falling back to rule-based "
+                "recommendations.",
+                exc,
+            )
+            recommendations = self._recommendation_engine.build(
+                correlation_groups, dependency_assessments, debugging_hypotheses, drift_insight
+            )
 
         return self._report_generator.generate(
             project_id=project_id,

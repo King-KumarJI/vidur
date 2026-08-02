@@ -4,15 +4,28 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 motor==3.6.0
 pymongo==4.9.1
-chromadb==0.5.5
+chromadb==1.5.9
 python-dotenv==1.0.1
 python-multipart==0.0.9
 scikit-learn==1.5.2
-spacy==3.7.5
+spacy==3.8.14
 # spacy's pretrained pipeline is not installable via pip/requirements.txt -
 # after `pip install -r requirements.txt`, also run:
 #   python -m spacy download en_core_web_sm
+# (this pulls en_core_web_sm 3.8.0, the version matching spacy 3.8.x)
+numpy==2.4.6
+Pillow
+opencv-python-headless
+ImageHash
+# torch's Windows/Mac PyPI wheels are CPU-only already, but the "+cpu" local
+# version below comes from PyTorch's own CPU wheel index - pip needs that
+# index to resolve it, hence the --extra-index-url line.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu
+open_clip_torch==3.3.0
+# open_clip_torch's pretrained CLIP checkpoint is downloaded once on first
+# use and cached locally on disk by torch/open_clip - no extra download step
+# needed, but the first run in a fresh environment needs network access once.
 pytest
 httpx
 pytest-asyncio
-settings

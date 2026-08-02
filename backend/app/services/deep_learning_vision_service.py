@@ -9,6 +9,7 @@ supplies both snapshots directly), runs `DeepLearningVisionEngine`,
 and persists the resulting report through `MemoryEngine`.
 """
 
+import base64
 from typing import Optional
 
 from fastapi.concurrency import run_in_threadpool
@@ -29,6 +30,10 @@ from app.schemas.deep_learning_vision_schemas import VisualSnapshotInput
 
 
 def _build_snapshot(project_id: str, snapshot_input: VisualSnapshotInput) -> VisualSnapshot:
+    image_bytes = None
+    if snapshot_input.image_bytes_base64 is not None:
+        image_bytes = base64.b64decode(snapshot_input.image_bytes_base64)
+
     image = None
     if snapshot_input.image is not None:
         image = PixelImage(
@@ -61,6 +66,7 @@ def _build_snapshot(project_id: str, snapshot_input: VisualSnapshotInput) -> Vis
         project_id=project_id,
         label=snapshot_input.label,
         captured_at=snapshot_input.captured_at or utc_now(),
+        image_bytes=image_bytes,
         image=image,
         layout=layout,
     )

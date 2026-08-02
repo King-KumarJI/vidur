@@ -7,6 +7,7 @@ DeepLearningVisionEngine / MemoryEngine collaborators.
 """
 
 import asyncio
+import base64
 from datetime import datetime, timezone
 from typing import List
 
@@ -95,7 +96,18 @@ def test_build_snapshot_defaults_captured_at_to_now_when_absent():
     snapshot = _build_snapshot("demo-project", VisualSnapshotInput(label="before"))
     assert snapshot.image is None
     assert snapshot.layout is None
+    assert snapshot.image_bytes is None
     assert snapshot.captured_at is not None
+
+
+def test_build_snapshot_decodes_base64_image_bytes():
+    raw_bytes = b"\x89PNG\r\n\x1a\nfake-png-payload"
+    encoded = base64.b64encode(raw_bytes).decode("ascii")
+    snapshot_input = VisualSnapshotInput(label="before", image_bytes_base64=encoded)
+
+    snapshot = _build_snapshot("demo-project", snapshot_input)
+
+    assert snapshot.image_bytes == raw_bytes
 
 
 def test_run_passes_converted_snapshots_to_engine(monkeypatch):

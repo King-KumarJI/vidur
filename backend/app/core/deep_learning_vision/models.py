@@ -3,14 +3,19 @@ VIDUR Core - Deep Learning Vision
 Submodule: Models
 Purpose: Plain, JSON-serializable data structures for the Deep
 Learning Vision pipeline. Two families:
-  - Caller-supplied input: PixelImage (width/height/channels + a flat
-    pixel buffer), LayoutElement/LayoutSnapshot (a pre-extracted
-    bounding-box structure), and VisualSnapshot (the "screenshot" unit
-    a caller submits for comparison - image data, layout data, or
-    both; this module never captures either itself).
-  - Pipeline output: PixelDiffResult, LayoutDiffResult,
-    LayoutConsistencyIssue, VisualRegressionFinding, and the
-    aggregated VisualComparisonReport.
+  - Caller-supplied input: `image_bytes` (a real screenshot file's raw
+    bytes - PNG/JPEG/etc. - the primary input contract, compared via
+    the pretrained-vision-model/classical-CV embedding path), PixelImage
+    (width/height/channels + a flat pixel buffer - the original
+    structured-data path, kept as a secondary option per Article 36),
+    LayoutElement/LayoutSnapshot (a pre-extracted bounding-box
+    structure), and VisualSnapshot (the "screenshot" unit a caller
+    submits for comparison - real image bytes, structured pixel data,
+    layout data, or any combination; this module never captures any of
+    it itself).
+  - Pipeline output: ImageEmbeddingComparisonResult, PixelDiffResult,
+    LayoutDiffResult, LayoutConsistencyIssue, VisualRegressionFinding,
+    and the aggregated VisualComparisonReport.
 """
 
 from dataclasses import dataclass, field
@@ -19,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.deep_learning_vision.enums import (
     ComparisonVerdict,
+    EmbeddingComparisonMethod,
     LayoutChangeType,
     LayoutConsistencyIssueType,
     VisualRiskLevel,
@@ -126,14 +132,18 @@ class LayoutSnapshot:
 @dataclass(frozen=True)
 class VisualSnapshot:
     """The caller-supplied unit compared by this module: a labeled
-    point-in-time capture of a UI surface, carrying pixel image data,
-    pre-extracted layout data, or both. VIDUR does not produce this
-    itself - it is assembled and submitted by the caller (e.g. from a
-    browser-automation tool the caller already runs)."""
+    point-in-time capture of a UI surface, carrying a real screenshot
+    file's raw bytes (`image_bytes` - the primary input contract),
+    structured pixel image data (`image` - the original path, kept as a
+    secondary option per Article 36), pre-extracted layout data, or any
+    combination. VIDUR does not produce this itself - it is assembled
+    and submitted by the caller (e.g. from a browser-automation tool the
+    caller already runs)."""
 
     project_id: str
     label: str
     captured_at: datetime
+    image_bytes: Optional[bytes] = None
     image: Optional[PixelImage] = None
     layout: Optional[LayoutSnapshot] = None
 
@@ -142,6 +152,7 @@ class VisualSnapshot:
             "project_id": self.project_id,
             "label": self.label,
             "captured_at": self.captured_at.isoformat(),
+            "image_bytes_size": len(self.image_bytes) if self.image_bytes is not None else None,
             "image": self.image.to_dict() if self.image is not None else None,
             "layout": self.layout.to_dict() if self.layout is not None else None,
         }
@@ -180,6 +191,35 @@ class PixelDiffResult:
             "diff_ratio": self.diff_ratio,
             "regions": [region.to_dict() for region in self.regions],
             "risk_level": self.risk_level.value,
+        }
+
+
+@dataclass(frozen=True)
+class ImageEmbeddingComparisonResult:
+    """Result of comparing two real screenshot images (`image_bytes`)
+    via a pretrained vision model embedding (OpenCLIP, primary path) or,
+    automatically when that path is unavailable, classical computer
+    vision (OpenCV + Structural Similarity Index + perceptual hashing).
+    `similarity` is always on a roughly 0..1 scale where 1.0 means
+    visually identical, regardless of which method produced it, so
+    downstream consumers (VisualRegressionDetector, the report) do not
+    need to know which method ran."""
+
+    method: EmbeddingComparisonMethod
+    similarity: float
+    risk_level: VisualRiskLevel
+    detail: str
+    ssim_score: Optional[float] = None
+    phash_hamming_distance: Optional[int] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "method": self.method.value,
+            "similarity": self.similarity,
+            "risk_level": self.risk_level.value,
+            "detail": self.detail,
+            "ssim_score": self.ssim_score,
+            "phash_hamming_distance": self.phash_hamming_distance,
         }
 
 
@@ -270,6 +310,7 @@ class VisualComparisonReport:
     baseline_label: str
     current_label: str
     generated_at: datetime
+    embedding_diff: Optional[ImageEmbeddingComparisonResult] = None
     pixel_diff: Optional[PixelDiffResult] = None
     layout_diff: Optional[LayoutDiffResult] = None
     consistency_issues: List[LayoutConsistencyIssue] = field(default_factory=list)
@@ -291,6 +332,7 @@ class VisualComparisonReport:
             "baseline_label": self.baseline_label,
             "current_label": self.current_label,
             "generated_at": self.generated_at.isoformat(),
+            "embedding_diff": self.embedding_diff.to_dict() if self.embedding_diff else None,
             "pixel_diff": self.pixel_diff.to_dict() if self.pixel_diff else None,
             "layout_diff": self.layout_diff.to_dict() if self.layout_diff else None,
             "consistency_issues": [issue.to_dict() for issue in self.consistency_issues],

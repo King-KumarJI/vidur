@@ -60,3 +60,14 @@ class ComparisonVerdict(str, Enum):
     MATCH = "match"
     MINOR_DIFFERENCE = "minor_difference"
     REGRESSION = "regression"
+
+
+class EmbeddingComparisonMethod(str, Enum):
+    """Which technique produced an ImageEmbeddingComparisonResult.
+    CLIP is the primary path (real pretrained vision model, inference
+    only); CLASSICAL_FALLBACK is used automatically whenever OpenCLIP/
+    torch cannot be imported or the model fails to load, per CLAUDE.md's
+    "Real AI/ML/DL/NLP Upgrade" Deep Learning Vision clause."""
+
+    CLIP = "clip"
+    CLASSICAL_FALLBACK = "classical_fallback"

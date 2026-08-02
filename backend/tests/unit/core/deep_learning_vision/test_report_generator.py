@@ -1,7 +1,11 @@
 """Unit tests for app.core.deep_learning_vision.report_generator."""
 
-from app.core.deep_learning_vision.enums import ComparisonVerdict, VisualRiskLevel
-from app.core.deep_learning_vision.models import PixelDiffResult, VisualRegressionFinding
+from app.core.deep_learning_vision.enums import ComparisonVerdict, EmbeddingComparisonMethod, VisualRiskLevel
+from app.core.deep_learning_vision.models import (
+    ImageEmbeddingComparisonResult,
+    PixelDiffResult,
+    VisualRegressionFinding,
+)
 from app.core.deep_learning_vision.report_generator import VisualComparisonReportGenerator
 
 
@@ -17,6 +21,7 @@ def test_generate_builds_visual_comparison_report():
         project_id="demo-project",
         baseline_label="homepage-v1",
         current_label="homepage-v2",
+        embedding_diff=None,
         pixel_diff=pixel_diff,
         layout_diff=None,
         consistency_issues=[],
@@ -39,6 +44,7 @@ def test_generate_summary_reflects_match_with_no_data_sources():
         project_id="demo-project",
         baseline_label="a",
         current_label="b",
+        embedding_diff=None,
         pixel_diff=None,
         layout_diff=None,
         consistency_issues=[],
@@ -48,6 +54,35 @@ def test_generate_summary_reflects_match_with_no_data_sources():
 
     assert "no meaningful visual differences" in report.summary.lower()
     assert "no data" in report.summary.lower()
+
+
+def test_generate_summary_reflects_embedding_data_source():
+    embedding_diff = ImageEmbeddingComparisonResult(
+        method=EmbeddingComparisonMethod.CLIP,
+        similarity=0.5,
+        risk_level=VisualRiskLevel.CRITICAL,
+        detail="OpenCLIP cosine similarity: 0.5000.",
+    )
+    findings = [
+        VisualRegressionFinding(category="embedding_diff", risk_level=VisualRiskLevel.CRITICAL, message="changed")
+    ]
+
+    report = VisualComparisonReportGenerator().generate(
+        project_id="demo-project",
+        baseline_label="a",
+        current_label="b",
+        embedding_diff=embedding_diff,
+        pixel_diff=None,
+        layout_diff=None,
+        consistency_issues=[],
+        findings=findings,
+        verdict=ComparisonVerdict.REGRESSION,
+    )
+
+    assert "embedding data" in report.summary.lower()
+    assert report.embedding_diff is embedding_diff
+    assert report.to_dict()["embedding_diff"]["method"] == "clip"
+    assert report.to_dict()["embedding_diff"]["similarity"] == 0.5
 
 
 def test_findings_by_risk_level_filters_and_sorts():
@@ -60,6 +95,7 @@ def test_findings_by_risk_level_filters_and_sorts():
         project_id="demo-project",
         baseline_label="a",
         current_label="b",
+        embedding_diff=None,
         pixel_diff=None,
         layout_diff=None,
         consistency_issues=[],

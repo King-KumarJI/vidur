@@ -76,6 +76,32 @@ Fewer than 5 historical sessions -> average over however many exist and say so e
 ### Current snapshot semantics (merge, not replace)
 Multiple independent sources ingest data for the same project over time: the local agent posts computer/personal/environmental metrics on its own interval, and the frontend's manual-input form posts sleep/caffeine independently, at different times. get_current_snapshot must return, for EACH individual metric field, the most recently reported value for that field across ALL ingestions -- never just the fields present in the single most recent ingest call. A manual ingest containing only {sleep_hours, caffeine_intake_mg} must not blank out CPU/RAM/typing-speed/etc. that were reported by an earlier, still-current agent ingestion. Only mark a field "missing" if it has genuinely never been reported at all.
 
+## Real AI/ML/DL/NLP Upgrade (supersedes earlier "stdlib-only" decisions where noted)
+
+Approved amendment: AI Reasoning, ML Prediction, Deep Learning Vision, and NLP move from rule-based/heuristic logic to real trained/pretrained models. All models must be free, open-source, run entirely locally/offline -- no paid APIs, no cloud inference, no API keys, ever.
+
+### AI Reasoning -> Local LLM via Ollama
+- Ollama runs as a separate local service (like Docker/Mongo), not a pip dependency. Backend calls its local HTTP API (http://localhost:11434).
+- Model: a small, free, locally-runnable model pulled through Ollama (e.g. llama3.2 or mistral -- pick based on what's actually reasonable to run on this machine at implementation time).
+- Sends Inspection Engine findings to the local model, parses its response into structured recommendations. If Ollama isn't running, fall back to the existing rule-based correlation logic rather than crashing -- additive, not a hard replacement.
+
+### Deep Learning Vision -> real pretrained vision models, offline only
+- Primary: OpenCLIP/CLIP, inference only, no training. Extracts feature embeddings from real UI screenshots, compares via cosine similarity to detect visual inconsistencies, layout changes, missing components, alignment issues, regressions.
+- Automatic fallback if the DL model/dependency isn't available: OpenCV + SSIM + perceptual hashing (classical CV, no DL dependency needed).
+- Changes the input contract: now accepts real image files/bytes (adds Pillow for decoding); the old structured-data path can stay as a secondary option.
+- Fully offline. Must remain independently enable/disable-able (existing MAJOR_DEEP_LEARNING_VISUAL_INSPECTION flag already does this).
+
+### ML Prediction -> real trained model
+- Add scikit-learn. Train an actual model on accumulated historical health-score/findings data pulled from Memory, replacing the hand-rolled QualityTrendPredictor formula.
+- Same cold-start honesty as everywhere else: low-confidence output when there's not enough history, never a fabricated number. Retrain periodically as history accumulates.
+
+### NLP -> real linguistic analysis
+- Add spaCy (small pretrained English pipeline, e.g. en_core_web_sm) for genuine linguistic analysis of docs/comments, alongside the existing AST-based code parsing and Chroma-embedding semantic comparison -- both stay, spaCy adds real NLP on top.
+
+### IoT -> real firmware (separate from the Python codebase, per Article 40)
+- Firmware for ESP32/Arduino implementing the already-documented serial protocol (docs/specs/serial-protocol.md), targeting common, cheap sensors (e.g. DHT22 for temperature/humidity, BH1750 or an LDR for ambient light, a basic analog sound sensor module for noise).
+- Untestable until real hardware exists -- write it ready to flash, don't claim it's been tested against real hardware.
+
 ## Build & verify
 
 ```

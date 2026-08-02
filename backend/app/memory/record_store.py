@@ -17,7 +17,7 @@ injection pattern every prior module's engine uses for its analyzer
 components.
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pymongo.errors import PyMongoError
 
@@ -163,3 +163,43 @@ class MemoryRecordStore:
             ) from exc
 
         return [document["health_score"] for document in documents]
+
+    async def quality_trend_training_data(
+        self,
+        project_id: str,
+        limit: Optional[int] = None,
+    ) -> List[Tuple[float, int]]:
+        """Return (health_score, finding_count) pairs from
+        `project_id`'s past Inspection Engine runs, oldest first, for
+        use as matched `historical_health_scores`/
+        `historical_finding_counts` input to MLPredictionEngine's
+        QualityTrendPredictor. Restricted to INSPECTION records - the
+        only record type whose payload carries a raw `findings` list -
+        so the two series stay aligned run-for-run; only records that
+        carry a health score are included."""
+        collection = self._collection(project_id)
+        query: Dict[str, Any] = {
+            "project_id": project_id,
+            "record_type": MemoryRecordType.INSPECTION.value,
+            "health_score": {"$ne": None},
+        }
+
+        try:
+            cursor = collection.find(query).sort("recorded_at", 1)
+            if limit is not None:
+                cursor = cursor.limit(limit)
+            documents = await cursor.to_list(length=limit)
+        except PyMongoError as exc:
+            logger.error(
+                "Failed to load quality trend training data for project_id=%s: %s",
+                project_id,
+                exc,
+            )
+            raise MemoryPersistenceError(
+                f"Failed to load quality trend training data for project '{project_id}': {exc}"
+            ) from exc
+
+        return [
+            (document["health_score"], len(document["payload"].get("findings", [])))
+            for document in documents
+        ]

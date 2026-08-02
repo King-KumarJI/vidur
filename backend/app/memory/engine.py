@@ -20,7 +20,7 @@ conversational/chat memory.
 """
 
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.config.feature_flags import FeatureFlag, FeatureFlagRegistry, feature_flags
 from app.config.logging_config import get_logger
@@ -227,6 +227,37 @@ class MemoryEngine:
                 )
                 raise MemoryModuleError(
                     f"Failed to load health score trend for project '{normalized_project_id}': {exc}"
+                ) from exc
+
+    async def quality_trend_training_data(
+        self,
+        project_id: str,
+        limit: Optional[int] = None,
+    ) -> List[Tuple[float, int]]:
+        """Return `project_id`'s recorded (health_score, finding_count)
+        history, oldest first - directly usable as the matched
+        `historical_health_scores`/`historical_finding_counts` input
+        to MLPredictionEngine.run's scikit-learn-backed
+        QualityTrendPredictor."""
+        self._require_enabled()
+        normalized_project_id = validate_project_id_format(project_id)
+
+        with project_scope(normalized_project_id):
+            try:
+                return await self._record_store.quality_trend_training_data(
+                    normalized_project_id, limit=limit
+                )
+            except (MemoryModuleError, ProjectIsolationError):
+                raise
+            except Exception as exc:
+                logger.error(
+                    "Failed to load quality trend training data for project_id=%s: %s",
+                    normalized_project_id,
+                    exc,
+                )
+                raise MemoryModuleError(
+                    f"Failed to load quality trend training data for project "
+                    f"'{normalized_project_id}': {exc}"
                 ) from exc
 
     async def _record(

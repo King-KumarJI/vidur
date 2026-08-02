@@ -1,17 +1,18 @@
 """Unit tests for app.services.ml_prediction_service.
 
 Exercises MLPredictionService's orchestration - feature-flag gating,
-optional reasoning, historical health-score lookup, prediction, and
-persistence - against stub InspectionService / AIReasoningService /
-MLPredictionEngine / MemoryEngine collaborators. `MLPredictionReport`
-itself is a large nested dataclass with no bearing on this service's
-own orchestration logic, so a trivial sentinel object stands in for it
-rather than constructing a full report end-to-end.
+optional reasoning, historical health-score/finding-count training
+data lookup, prediction, and persistence - against stub
+InspectionService / AIReasoningService / MLPredictionEngine /
+MemoryEngine collaborators. `MLPredictionReport` itself is a large
+nested dataclass with no bearing on this service's own orchestration
+logic, so a trivial sentinel object stands in for it rather than
+constructing a full report end-to-end.
 """
 
 import asyncio
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -57,18 +58,33 @@ class _StubEngine:
         self.report = report
         self.calls: List[tuple] = []
 
-    def run(self, project_id, inspection_report, reasoning_report, historical_health_scores):
-        self.calls.append((project_id, inspection_report, reasoning_report, historical_health_scores))
+    def run(
+        self,
+        project_id,
+        inspection_report,
+        reasoning_report,
+        historical_health_scores,
+        historical_finding_counts,
+    ):
+        self.calls.append(
+            (
+                project_id,
+                inspection_report,
+                reasoning_report,
+                historical_health_scores,
+                historical_finding_counts,
+            )
+        )
         return self.report
 
 
 class _StubMemoryEngine:
-    def __init__(self, historical_scores: Optional[List[float]] = None) -> None:
-        self.historical_scores = historical_scores or []
+    def __init__(self, training_data: Optional[List[Tuple[float, int]]] = None) -> None:
+        self.training_data = training_data or []
         self.recorded: List = []
 
-    async def health_score_trend(self, project_id):
-        return self.historical_scores
+    async def quality_trend_training_data(self, project_id):
+        return self.training_data
 
     async def record_ml_prediction(self, report):
         self.recorded.append(report)
@@ -149,10 +165,10 @@ def test_run_skips_reasoning_when_disabled_by_caller(monkeypatch):
     assert engine.calls[0][2] is None
 
 
-def test_run_feeds_historical_health_scores_into_prediction(monkeypatch):
+def test_run_feeds_historical_health_scores_and_finding_counts_into_prediction(monkeypatch):
     _enable_ml_prediction(monkeypatch)
     engine = _StubEngine(_FakePredictionReport())
-    memory_engine = _StubMemoryEngine(historical_scores=[70.0, 80.0])
+    memory_engine = _StubMemoryEngine(training_data=[(70.0, 3), (80.0, 1)])
     service = MLPredictionService(
         engine=engine,
         inspection_service=_StubInspectionService(_inspection_report()),
@@ -163,6 +179,7 @@ def test_run_feeds_historical_health_scores_into_prediction(monkeypatch):
     asyncio.run(service.run("demo-project", "/tmp/demo"))
 
     assert engine.calls[0][3] == [70.0, 80.0]
+    assert engine.calls[0][4] == [3, 1]
 
 
 def test_run_persists_prediction_report(monkeypatch):

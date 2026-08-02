@@ -5,8 +5,9 @@ Purpose: Orchestration logic for the ML Prediction module's routes.
 `MLPredictionEngine.run` requires a completed `InspectionReport` (and
 optionally a paired `ReasoningReport`) as input, so this service runs
 a fresh inspection (and, unless disabled by the caller, reasoning)
-before predicting, fetches the project's recorded health-score history
-from `MemoryEngine` to feed `QualityTrendPredictor`, and persists the
+before predicting, fetches the project's recorded (health-score,
+finding-count) training history from `MemoryEngine` to train
+`QualityTrendPredictor`'s scikit-learn model, and persists the
 resulting `MLPredictionReport` back into project memory.
 """
 
@@ -54,8 +55,11 @@ class MLPredictionService:
             inspection_report = await self._inspection_service.run(project_id, root_path)
 
         historical_health_scores = None
+        historical_finding_counts = None
         if feature_flags.is_enabled(FeatureFlag.MINOR_PROJECT_MEMORY):
-            historical_health_scores = await self._memory_engine.health_score_trend(project_id)
+            training_data = await self._memory_engine.quality_trend_training_data(project_id)
+            historical_health_scores = [point[0] for point in training_data]
+            historical_finding_counts = [point[1] for point in training_data]
 
         report = await run_in_threadpool(
             self._engine.run,
@@ -63,6 +67,7 @@ class MLPredictionService:
             inspection_report,
             reasoning_report,
             historical_health_scores,
+            historical_finding_counts,
         )
 
         if feature_flags.is_enabled(FeatureFlag.MINOR_PROJECT_MEMORY):

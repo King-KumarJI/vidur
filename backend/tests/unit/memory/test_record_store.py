@@ -188,6 +188,80 @@ def test_health_score_history_filters_by_record_types():
     assert scores == [80.0]
 
 
+def test_quality_trend_training_data_is_oldest_first_and_paired_with_finding_counts():
+    store = _store()
+
+    async def scenario():
+        record_a = _record("rec-1", 5, health_score=70.0)
+        record_a = MemoryRecord(
+            record_id=record_a.record_id,
+            project_id=record_a.project_id,
+            record_type=record_a.record_type,
+            recorded_at=record_a.recorded_at,
+            summary=record_a.summary,
+            payload={"findings": [{"id": "f1"}, {"id": "f2"}]},
+            health_score=record_a.health_score,
+        )
+        record_b = _record("rec-2", 0, health_score=60.0)
+        record_b = MemoryRecord(
+            record_id=record_b.record_id,
+            project_id=record_b.project_id,
+            record_type=record_b.record_type,
+            recorded_at=record_b.recorded_at,
+            summary=record_b.summary,
+            payload={"findings": [{"id": "f1"}]},
+            health_score=record_b.health_score,
+        )
+        await store.save(record_a)
+        await store.save(record_b)
+        return await store.quality_trend_training_data("demo-project")
+
+    training_data = asyncio.run(scenario())
+    assert training_data == [(60.0, 1), (70.0, 2)]
+
+
+def test_quality_trend_training_data_excludes_non_inspection_records():
+    store = _store()
+
+    async def scenario():
+        inspection = _record("rec-1", 0, health_score=60.0, record_type=MemoryRecordType.INSPECTION)
+        inspection = MemoryRecord(
+            record_id=inspection.record_id,
+            project_id=inspection.project_id,
+            record_type=inspection.record_type,
+            recorded_at=inspection.recorded_at,
+            summary=inspection.summary,
+            payload={"findings": [{"id": "f1"}]},
+            health_score=inspection.health_score,
+        )
+        ml_prediction = _record(
+            "rec-2", 5, health_score=80.0, record_type=MemoryRecordType.ML_PREDICTION
+        )
+        await store.save(inspection)
+        await store.save(ml_prediction)
+        return await store.quality_trend_training_data("demo-project")
+
+    training_data = asyncio.run(scenario())
+    assert training_data == [(60.0, 1)]
+
+
+def test_quality_trend_training_data_treats_missing_findings_key_as_zero():
+    store = _store()
+
+    async def scenario():
+        await store.save(_record("rec-1", 0, health_score=60.0))
+        return await store.quality_trend_training_data("demo-project")
+
+    training_data = asyncio.run(scenario())
+    assert training_data == [(60.0, 0)]
+
+
+def test_quality_trend_training_data_wraps_pymongo_errors():
+    store = _store(fail=True)
+    with pytest.raises(MemoryPersistenceError):
+        asyncio.run(store.quality_trend_training_data("demo-project"))
+
+
 def test_save_wraps_pymongo_errors():
     store = _store(fail=True)
     with pytest.raises(MemoryPersistenceError):

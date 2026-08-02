@@ -10,15 +10,15 @@ isolation.
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 
 from app.config.feature_flags import FeatureFlagRegistry, FeatureFlagSettings
 from app.core.deep_learning_vision.enums import ComparisonVerdict
 from app.core.deep_learning_vision.models import VisualComparisonReport
-from app.core.inspection_engine.enums import InspectionStatus
-from app.core.inspection_engine.models import InspectionReport
+from app.core.inspection_engine.enums import FindingCategory, InspectionStatus, Severity
+from app.core.inspection_engine.models import Finding, InspectionReport
 from app.core.project_isolation.exceptions import InvalidProjectIdError
 from app.memory.engine import MemoryEngine
 from app.memory.enums import MemoryRecordType
@@ -65,6 +65,23 @@ class _FakeRecordStore:
         scores = [record.health_score for record in records]
         return scores[:limit] if limit is not None else scores
 
+    async def quality_trend_training_data(
+        self, project_id, limit=None
+    ) -> List[Tuple[float, int]]:
+        records = [
+            record
+            for record in self.saved.values()
+            if record.project_id == project_id
+            and record.record_type == MemoryRecordType.INSPECTION
+            and record.health_score is not None
+        ]
+        records.sort(key=lambda record: record.recorded_at)
+        pairs = [
+            (record.health_score, len(record.payload.get("findings", [])))
+            for record in records
+        ]
+        return pairs[:limit] if limit is not None else pairs
+
 
 class _FakeSemanticIndex:
     def __init__(self) -> None:
@@ -107,7 +124,11 @@ def _engine(registry: Optional[FeatureFlagRegistry] = None):
     return engine, store, index
 
 
-def _inspection_report(project_id: str = "demo-project", health_score: float = 88.0) -> InspectionReport:
+def _inspection_report(
+    project_id: str = "demo-project",
+    health_score: float = 88.0,
+    findings: Optional[List[Finding]] = None,
+) -> InspectionReport:
     return InspectionReport(
         project_id=project_id,
         root_path="/tmp/demo",
@@ -115,6 +136,16 @@ def _inspection_report(project_id: str = "demo-project", health_score: float = 8
         started_at=_NOW,
         completed_at=_NOW,
         health_score=health_score,
+        findings=findings or [],
+    )
+
+
+def _finding() -> Finding:
+    return Finding(
+        category=FindingCategory.CODE_QUALITY,
+        severity=Severity.WARNING,
+        code="Q001",
+        message="example finding",
     )
 
 
@@ -242,3 +273,29 @@ def test_health_score_trend_excludes_records_without_a_score():
     scores = asyncio.run(engine.health_score_trend("demo-project"))
 
     assert scores == [65.0]
+
+
+def test_quality_trend_training_data_raises_when_feature_flag_disabled():
+    engine, _, _ = _engine(_disabled_registry())
+    with pytest.raises(MemoryDisabledError):
+        asyncio.run(engine.quality_trend_training_data("demo-project"))
+
+
+def test_quality_trend_training_data_returns_oldest_first_paired_data():
+    engine, _, _ = _engine()
+    asyncio.run(engine.record_inspection(_inspection_report(health_score=70.0, findings=[_finding(), _finding()])))
+    asyncio.run(engine.record_inspection(_inspection_report(health_score=80.0, findings=[_finding()])))
+
+    training_data = asyncio.run(engine.quality_trend_training_data("demo-project"))
+
+    assert training_data == [(70.0, 2), (80.0, 1)]
+
+
+def test_quality_trend_training_data_excludes_non_inspection_records():
+    engine, _, _ = _engine()
+    asyncio.run(engine.record_visual_comparison(_visual_report()))
+    asyncio.run(engine.record_inspection(_inspection_report(health_score=65.0, findings=[_finding()])))
+
+    training_data = asyncio.run(engine.quality_trend_training_data("demo-project"))
+
+    assert training_data == [(65.0, 1)]

@@ -69,10 +69,13 @@ class MLPredictionEngine:
         inspection_report: InspectionReport,
         reasoning_report: Optional[ReasoningReport] = None,
         historical_health_scores: Optional[List[float]] = None,
+        historical_finding_counts: Optional[List[int]] = None,
     ) -> MLPredictionReport:
         """Run ML prediction over `inspection_report` (optionally
-        enriched by `reasoning_report`'s dependency-impact data and a
-        caller-supplied `historical_health_scores` series), scoped to
+        enriched by `reasoning_report`'s dependency-impact data, a
+        caller-supplied `historical_health_scores` series, and a
+        paired `historical_finding_counts` series used to train the
+        QualityTrendPredictor's scikit-learn model), scoped to
         `project_id`.
 
         Raises MLPredictionDisabledError if MAJOR_ML_RISK_PREDICTION is
@@ -109,7 +112,11 @@ class MLPredictionEngine:
         with project_scope(normalized_project_id):
             try:
                 report = self._execute(
-                    normalized_project_id, inspection_report, reasoning_report, historical_health_scores
+                    normalized_project_id,
+                    inspection_report,
+                    reasoning_report,
+                    historical_health_scores,
+                    historical_finding_counts,
                 )
             except (MLPredictionError, ProjectIsolationError):
                 raise
@@ -137,6 +144,7 @@ class MLPredictionEngine:
         inspection_report: InspectionReport,
         reasoning_report: Optional[ReasoningReport],
         historical_health_scores: Optional[List[float]],
+        historical_finding_counts: Optional[List[int]] = None,
     ) -> MLPredictionReport:
         feature_vector = self._feature_extractor.extract(inspection_report, reasoning_report)
         module_risk_scores = self._high_risk_module_identifier.identify(
@@ -147,7 +155,10 @@ class MLPredictionEngine:
         regression_risk = self._regression_risk_predictor.predict(feature_vector)
         technical_debt = self._technical_debt_estimator.estimate(feature_vector)
         quality_trend = self._quality_trend_predictor.predict(
-            inspection_report.health_score, historical_health_scores
+            inspection_report.health_score,
+            historical_health_scores,
+            historical_finding_counts,
+            current_finding_count=len(inspection_report.findings),
         )
         failure_probability = self._failure_probability_predictor.predict(
             feature_vector, regression_risk, technical_debt

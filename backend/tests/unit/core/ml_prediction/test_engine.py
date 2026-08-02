@@ -103,6 +103,36 @@ def test_run_uses_historical_health_scores_for_quality_trend(tmp_path):
     assert prediction.quality_trend.data_points_used == 4
 
 
+def test_run_uses_historical_finding_counts_for_quality_trend(tmp_path):
+    report = _inspection_report(tmp_path)
+    engine = MLPredictionEngine(feature_flag_registry=_enabled_registry())
+
+    prediction = engine.run(
+        "demo-project",
+        report,
+        historical_health_scores=[50.0, 60.0, 70.0],
+        historical_finding_counts=[5, 3, 1],
+    )
+
+    assert prediction.quality_trend.data_points_used == 4
+    assert "finding-count history" in prediction.quality_trend.summary
+
+
+def test_run_ignores_mismatched_historical_finding_counts(tmp_path):
+    report = _inspection_report(tmp_path)
+    engine = MLPredictionEngine(feature_flag_registry=_enabled_registry())
+
+    prediction = engine.run(
+        "demo-project",
+        report,
+        historical_health_scores=[50.0, 60.0, 70.0],
+        historical_finding_counts=[5, 3],  # one short of the health-score history
+    )
+
+    assert prediction.quality_trend.data_points_used == 4
+    assert "finding-count history" not in prediction.quality_trend.summary
+
+
 def test_run_normalizes_project_id_case(tmp_path):
     report = _inspection_report(tmp_path)
     engine = MLPredictionEngine(feature_flag_registry=_enabled_registry())

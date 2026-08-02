@@ -1,0 +1,6 @@
+# PlatformIO build output
+.pio/
+
+# Isolated PlatformIO CLI virtual environment (see README.md) -- not
+# committed, same reasoning as backend/venv/ being gitignored.
+.pio-venv/

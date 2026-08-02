@@ -5,6 +5,10 @@ backend/.env
 .vscode/
 frontend/node_modules/
 frontend/dist/
-backend/logs/ 
-frontend/.env 
-"running command.txt" 
+backend/logs/
+frontend/.env
+"running command.txt"
+firmware/.pio/
+firmware/.pio-venv/
+firmware/.pio-venv/
+firmware/.pio/

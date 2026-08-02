@@ -16,12 +16,19 @@ Collected each cycle:
     logs key identity, key content, or continuous mouse coordinates.
   - Environmental: temperature/humidity/ambient light/noise level.
     Each cycle scans serial ports for a known Arduino/ESP32 USB
-    VID:PID (see `KNOWN_BOARD_VID_PIDS`); on a match it requests one
-    JSON reading over the line protocol documented in
-    `docs/specs/serial-protocol.md` (`source: "hardware"`). No match,
-    or a failed/malformed hardware read, falls back to a plausible
-    simulated reading (`source: "simulation"`) - zero code changes are
-    needed when real hardware is plugged in.
+    VID:PID (see `KNOWN_BOARD_VID_PIDS`) as a pre-filter, then sends
+    an `IDENTIFY` request to a matched port as the authoritative "is
+    this real VIDUR firmware" check (protocol v1.1, documented in
+    `docs/specs/serial-protocol.md`'s "Board identification handshake"
+    section) - a VID:PID match alone only means a board that plausibly
+    speaks this protocol is connected, since many unrelated boards
+    share the same CH340/CP210x/FTDI USB-serial chips. Only once
+    `IDENTIFY` confirms real firmware does the agent request one JSON
+    reading over the `READ` line protocol (`source: "hardware"`). No
+    VID:PID match, a failed/unconfirmed `IDENTIFY`, or a failed/
+    malformed `READ`, all fall back to a plausible simulated reading
+    (`source: "simulation"`) - zero code changes are needed when real
+    hardware is plugged in.
 
 Any metric this agent has no data for is sent as `null`/omitted, which
 the backend stores as `status: "missing"` - never fabricated.
@@ -398,6 +405,54 @@ def find_known_serial_port(
     return None
 
 
+def send_identify_request(
+    device: str,
+    baudrate: int = DEFAULT_SERIAL_BAUDRATE,
+    timeout: float = DEFAULT_SERIAL_TIMEOUT_SECONDS,
+    serial_cls: Callable[..., object] = serial.Serial,
+) -> Optional[str]:
+    """Send the `IDENTIFY` handshake (protocol v1.1, `docs/specs/serial-protocol.md`'s
+    "Board identification handshake" section) and return the confirmed board
+    name from a real VIDUR firmware's `{"board": "..."}` response, or None if
+    the port didn't respond, timed out, or replied with something that isn't
+    a valid IDENTIFY response.
+
+    This is the authoritative "is this real VIDUR firmware" check - a
+    VID:PID match (`find_known_serial_port`) alone only means a board that
+    plausibly speaks this protocol is connected, since many unrelated
+    boards/devices share the same CH340/CP210x/FTDI USB-serial chips.
+    """
+
+    try:
+        with serial_cls(device, baudrate=baudrate, timeout=timeout) as connection:
+            connection.reset_input_buffer()
+            connection.write(b"IDENTIFY\n")
+            connection.flush()
+            raw_line = connection.readline()
+    except Exception:
+        logger.warning("IDENTIFY request to %s failed", device, exc_info=True)
+        return None
+
+    if not raw_line:
+        return None
+    try:
+        line = raw_line.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return None
+
+    try:
+        payload = json.loads(line)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    board = payload.get("board")
+    if isinstance(board, str) and board:
+        return board
+    return None
+
+
 def read_hardware_environmental_line(
     device: str,
     baudrate: int = DEFAULT_SERIAL_BAUDRATE,
@@ -463,26 +518,46 @@ def collect_environmental_metrics(
     serial_timeout: float = DEFAULT_SERIAL_TIMEOUT_SECONDS,
     rng: "random.Random" = random,
 ) -> Dict[str, object]:
-    """Scan -> read -> parse -> simulate-on-failure, per CLAUDE.md's
-    "simulation with automatic hardware handoff" contract. Always
+    """Scan -> confirm (IDENTIFY) -> read -> parse -> simulate-on-failure,
+    per CLAUDE.md's "simulation with automatic hardware handoff" contract.
+    A VID:PID match only narrows down which port to try; `IDENTIFY` is the
+    authoritative confirmation that real VIDUR firmware (not some other
+    device sharing the same USB-serial chip) is actually listening, per
+    `docs/specs/serial-protocol.md`'s v1.1 "Board identification handshake"
+    addition - a `READ` is only attempted once `IDENTIFY` confirms. Always
     returns all four metric keys plus `source`."""
 
     match = find_known_serial_port(list_ports_fn)
     if match is not None:
-        device, board_name = match
-        line = read_hardware_environmental_line(
+        device, hinted_board_name = match
+        confirmed_board = send_identify_request(
             device, baudrate=baudrate, timeout=serial_timeout, serial_cls=serial_cls
         )
-        reading = parse_environmental_line(line) if line is not None else None
-        if reading is not None:
-            logger.info("Environmental reading from hardware (%s on %s)", board_name, device)
-            reading["source"] = "hardware"
-            return reading
-        logger.warning(
-            "Matched board %s on %s but the hardware read failed; falling back to simulation",
-            board_name,
-            device,
-        )
+        if confirmed_board is None:
+            logger.warning(
+                "Port %s matched a known USB-serial chip (%s) but did not answer IDENTIFY; "
+                "not confirmed VIDUR firmware, falling back to simulation",
+                device,
+                hinted_board_name,
+            )
+        else:
+            line = read_hardware_environmental_line(
+                device, baudrate=baudrate, timeout=serial_timeout, serial_cls=serial_cls
+            )
+            reading = parse_environmental_line(line) if line is not None else None
+            if reading is not None:
+                logger.info(
+                    "Environmental reading from hardware (confirmed %s on %s via IDENTIFY)",
+                    confirmed_board,
+                    device,
+                )
+                reading["source"] = "hardware"
+                return reading
+            logger.warning(
+                "Confirmed VIDUR board %s on %s but the READ request failed; falling back to simulation",
+                confirmed_board,
+                device,
+            )
 
     simulated: Dict[str, object] = dict(simulate_environmental_reading(rng))
     simulated["source"] = "simulation"

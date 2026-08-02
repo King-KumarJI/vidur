@@ -279,15 +279,27 @@ class _FakeSerialContext:
         pass
 
     def readline(self):
+        if self._parent.response_lines is not None:
+            if self._parent.response_lines:
+                return self._parent.response_lines.pop(0)
+            return b""
         return self._parent.response_line
 
 
 class _FakeSerial:
     """Callable stand-in for `serial.Serial` - constructing it returns a
-    context manager instead of opening a real serial port."""
+    context manager instead of opening a real serial port.
 
-    def __init__(self, response_line=b"", raise_on_open=False):
+    `response_lines`, if given, is popped one entry per open (each of
+    `send_identify_request`/`read_hardware_environmental_line` opens its own
+    `with serial_cls(...)` block), letting a single fake stand in for a
+    multi-request IDENTIFY-then-READ sequence with different responses.
+    `response_line` (singular) is used unconditionally instead when
+    `response_lines` is not given, for tests that only issue one request."""
+
+    def __init__(self, response_line=b"", response_lines=None, raise_on_open=False):
         self.response_line = response_line
+        self.response_lines = list(response_lines) if response_lines is not None else None
         self.raise_on_open = raise_on_open
         self.write_calls = []
 
@@ -313,6 +325,42 @@ class TestReadHardwareEnvironmentalLine:
         fake_serial = _FakeSerial(response_line=b"")
         line = local_agent.read_hardware_environmental_line("COM5", serial_cls=fake_serial)
         assert line is None
+
+
+class TestSendIdentifyRequest:
+    def test_confirmed_board_returns_board_name(self):
+        fake_serial = _FakeSerial(response_line=json.dumps({"board": "esp32"}).encode("utf-8"))
+        board = local_agent.send_identify_request("COM5", serial_cls=fake_serial)
+        assert board == "esp32"
+        assert fake_serial.write_calls == [b"IDENTIFY\n"]
+
+    def test_open_failure_returns_none(self):
+        fake_serial = _FakeSerial(raise_on_open=True)
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
+
+    def test_empty_read_returns_none(self):
+        fake_serial = _FakeSerial(response_line=b"")
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
+
+    def test_invalid_json_returns_none(self):
+        fake_serial = _FakeSerial(response_line=b"not json\n")
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
+
+    def test_non_object_json_returns_none(self):
+        fake_serial = _FakeSerial(response_line=b"[1, 2, 3]\n")
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
+
+    def test_missing_board_key_returns_none(self):
+        fake_serial = _FakeSerial(response_line=json.dumps({"not_board": "esp32"}).encode("utf-8"))
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
+
+    def test_non_string_board_value_returns_none(self):
+        fake_serial = _FakeSerial(response_line=json.dumps({"board": 42}).encode("utf-8"))
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
+
+    def test_empty_string_board_value_returns_none(self):
+        fake_serial = _FakeSerial(response_line=json.dumps({"board": ""}).encode("utf-8"))
+        assert local_agent.send_identify_request("COM5", serial_cls=fake_serial) is None
 
 
 class TestParseEnvironmentalLine:
@@ -372,9 +420,14 @@ class TestCollectEnvironmentalMetrics:
         for key in local_agent._ENVIRONMENTAL_METRIC_KEYS:
             assert result[key] is not None
 
-    def test_successful_hardware_read_reports_hardware_source(self):
+    def test_successful_identify_and_read_reports_hardware_source(self):
         ports = [SimpleNamespace(vid=0x1A86, pid=0x7523, device="COM5")]
-        fake_serial = _FakeSerial(response_line=json.dumps({"temperature_celsius": 22.1}).encode("utf-8"))
+        fake_serial = _FakeSerial(
+            response_lines=[
+                json.dumps({"board": "esp32"}).encode("utf-8"),
+                json.dumps({"temperature_celsius": 22.1}).encode("utf-8"),
+            ]
+        )
 
         result = local_agent.collect_environmental_metrics(
             list_ports_fn=lambda: ports, serial_cls=fake_serial
@@ -382,8 +435,9 @@ class TestCollectEnvironmentalMetrics:
         assert result["source"] == "hardware"
         assert result["temperature_celsius"] == 22.1
         assert result["humidity_percent"] is None
+        assert fake_serial.write_calls == [b"IDENTIFY\n", b"READ\n"]
 
-    def test_matched_board_but_failed_read_falls_back_to_simulation(self):
+    def test_matched_board_but_failed_identify_falls_back_to_simulation_without_attempting_read(self):
         import random
 
         ports = [SimpleNamespace(vid=0x1A86, pid=0x7523, device="COM5")]
@@ -394,7 +448,7 @@ class TestCollectEnvironmentalMetrics:
         )
         assert result["source"] == "simulation"
 
-    def test_matched_board_but_malformed_json_falls_back_to_simulation(self):
+    def test_matched_board_but_identify_returns_malformed_json_falls_back_to_simulation(self):
         import random
 
         ports = [SimpleNamespace(vid=0x1A86, pid=0x7523, device="COM5")]
@@ -404,6 +458,21 @@ class TestCollectEnvironmentalMetrics:
             list_ports_fn=lambda: ports, serial_cls=fake_serial, rng=random.Random(3)
         )
         assert result["source"] == "simulation"
+        assert fake_serial.write_calls == [b"IDENTIFY\n"]
+
+    def test_identify_confirmed_but_read_fails_falls_back_to_simulation(self):
+        import random
+
+        ports = [SimpleNamespace(vid=0x1A86, pid=0x7523, device="COM5")]
+        fake_serial = _FakeSerial(
+            response_lines=[json.dumps({"board": "uno"}).encode("utf-8"), b""]
+        )
+
+        result = local_agent.collect_environmental_metrics(
+            list_ports_fn=lambda: ports, serial_cls=fake_serial, rng=random.Random(4)
+        )
+        assert result["source"] == "simulation"
+        assert fake_serial.write_calls == [b"IDENTIFY\n", b"READ\n"]
 
 
 # --------------------------------------------------------------------------

@@ -1,10 +1,18 @@
 # VIDUR Specs Module — Environmental Sensor Serial Protocol
 
 **Status:** Documented for `backend/scripts/local_agent.py`'s hardware read path.
-Firmware implementing this protocol is out of scope for this Python codebase
-(VIDUR Constitution Article 40) — this document exists so that whoever writes
-the Arduino/ESP32 firmware later has an exact contract to implement, requiring
-**zero changes** to `local_agent.py` when real hardware is plugged in.
+Firmware implementing this protocol now exists (`firmware/`, ESP32 + Arduino
+Uno/Nano/Mega 2560, compile-verified only — see `firmware/README.md`),
+implementing this document exactly, including the v1.1 IDENTIFY handshake
+addition below.
+
+**Protocol version note (explicit, flagged addition — not a silent change):**
+version 1.1 adds the `IDENTIFY` request/response pair documented in "Board
+identification handshake" below. It is additive: every v1.0 behavior (`READ`
+and its response, timeouts, per-sensor omission) is unchanged. `local_agent.py`
+now tries `IDENTIFY` on a VID:PID-matched port as the authoritative "is this
+real VIDUR firmware" check before attempting a `READ`, per the "Board
+identification" section below.
 
 ## Transport
 
@@ -28,10 +36,43 @@ known-boards table (see `local_agent.py`'s `KNOWN_BOARD_VID_PIDS`):
 | CH9102 (ESP32-S3 dev boards)  | `1A86:55D3` |
 
 A VID:PID match only means "a board that plausibly speaks this protocol is
-connected" — it is not proof the firmware is present or correct. A failed or
-malformed read on a matched port is treated as a hardware read failure and the
-agent falls back to simulation for that cycle (see `local_agent.py`'s
-`collect_environmental_metrics`).
+connected" — it is **not** proof the firmware is present or correct. These
+USB-serial chips (CH340, CP210x, FTDI) ship on countless unrelated boards and
+devices, so a VID:PID match alone cannot distinguish real VIDUR firmware from
+some other device that happens to use the same USB-serial chip. This is why
+the agent now treats VID:PID matching as a pre-filter only, and the
+`IDENTIFY` handshake (below) as the authoritative confirmation. A failed or
+malformed read on a matched, `IDENTIFY`-confirmed port is treated as a
+hardware read failure and the agent falls back to simulation for that cycle
+(see `local_agent.py`'s `collect_environmental_metrics`).
+
+## Board identification handshake (`IDENTIFY`) — protocol v1.1 addition
+
+Before requesting a `READ`, the agent sends the board a second, independent
+request to confirm it is really running VIDUR firmware and to learn exactly
+which board it's talking to:
+
+```
+Agent  -> Board:  IDENTIFY\n
+Board  -> Agent:  {"board": "esp32"}\n
+```
+
+- The request is the literal ASCII text `IDENTIFY` followed by `\n` — same
+  transport rules as `READ` (one line, `\n`-terminated, `\r\n` accepted and
+  stripped).
+- The response is a single line of flat JSON with exactly one key, `board`,
+  whose value is one of the firmware's supported board identifiers:
+  `"esp32"`, `"uno"`, `"nano"`, `"mega2560"` (see `firmware/platformio.ini`'s
+  `VIDUR_BOARD_ID` build flag, one per environment — this is the
+  authoritative, single place new board identifiers are added).
+- A port that does not answer `IDENTIFY` within the timeout, or answers with
+  something that is not valid JSON, not a flat object, or has no non-empty
+  string `board` key, is **not** treated as confirmed VIDUR firmware — the
+  agent does not attempt a `READ` on that port and falls back to simulation
+  for that cycle, exactly as if the port had failed a `READ` (see "Timeouts
+  and failure handling" below).
+- `IDENTIFY` is answered from the same request/response loop as `READ` —
+  firmware must not send anything unsolicited in response to it either.
 
 ## Request/response cycle
 
@@ -43,8 +84,9 @@ Agent  -> Board:  READ\n
 Board  -> Agent:  {"temperature_celsius": 24.3, "humidity_percent": 41.0, "ambient_light_lux": 310.5, "noise_level_db": 38.2}\n
 ```
 
-- The request is the literal ASCII text `READ` followed by `\n`. No other
-  request verbs exist in this version of the protocol.
+- The request is the literal ASCII text `READ` followed by `\n`. `READ` and
+  `IDENTIFY` (above) are the only two request verbs defined by this protocol
+  version; any other line is silently ignored by the firmware.
 - The response is a single line of JSON — a flat object. Keys are exactly the
   four environmental metric names used by `EnvironmentalMetricsIngestRequest`:
   `temperature_celsius`, `humidity_percent`, `ambient_light_lux`,
@@ -69,24 +111,28 @@ ambient light and noise level are unavailable and will be marked missing.
 ## Timeouts and failure handling
 
 - The agent's serial read timeout is configurable (`--serial-timeout`,
-  default 2.0 seconds). If no response line is received within the timeout,
-  or the line is not valid JSON, or it parses to something other than a flat
-  JSON object of numbers, the agent treats the entire cycle as a hardware
-  read failure and falls back to simulated environmental data for that cycle
-  only (source reported as `simulation`, not `hardware`).
+  default 2.0 seconds), and applies to `IDENTIFY` requests the same way it
+  applies to `READ` requests. If no response line is received within the
+  timeout, or the line is not valid JSON, or it parses to something other
+  than the expected shape (a flat JSON object of numbers for `READ`; a flat
+  JSON object with a non-empty string `board` key for `IDENTIFY`), the agent
+  treats the cycle as a failure at that step. An `IDENTIFY` failure skips
+  `READ` entirely for that port and falls back to simulated environmental
+  data for that cycle only (source reported as `simulation`, not `hardware`).
 - The agent does not retry within a cycle. The next ingestion cycle re-scans
-  ports and re-attempts hardware communication from scratch — this is what
-  gives the "zero code changes needed when hardware is plugged in" property:
-  a board that was absent, mis-seated, or mid-reset on one cycle is simply
-  tried again on the next.
+  ports and re-attempts hardware communication (`IDENTIFY` then `READ`) from
+  scratch — this is what gives the "zero code changes needed when hardware is
+  plugged in" property: a board that was absent, mis-seated, or mid-reset on
+  one cycle is simply tried again on the next.
 
 ## Future work (not implemented by `local_agent.py`, documented for later)
 
-A future v2 of this protocol could add a `MANIFEST\n` request, answered once
-on connect with a JSON object describing the board type and which sensors are
-physically present, so the agent can distinguish "sensor omitted this reading
-due to a transient fault" from "this board never had that sensor." Writing
-that manifest handshake into firmware is explicitly out of scope for this
-session (VIDUR Constitution Article 40 — no non-Python firmware code in this
-codebase); `local_agent.py`'s per-field missing handling already works
-correctly without it, so this is a future enhancement, not a blocker.
+`IDENTIFY` (above) confirms firmware identity and board type but not
+per-sensor presence. A future v2 of this protocol could extend `IDENTIFY`'s
+response (or add a separate `MANIFEST\n` request) with a JSON array of which
+sensors are physically present on this specific board, so the agent could
+distinguish "sensor omitted this reading due to a transient fault" from "this
+board never had that sensor." `local_agent.py`'s existing per-field missing
+handling already works correctly without this distinction (both cases are
+reported as `status: "missing"` today), so this remains a future enhancement,
+not a blocker.

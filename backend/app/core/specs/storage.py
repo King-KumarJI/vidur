@@ -18,7 +18,7 @@ owns its own flag/isolation guarantees directly rather than delegating
 to a separate engine.py, matching the module scope as specified.
 """
 
-import time
+import itertools
 import uuid
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -55,6 +55,17 @@ SNAPSHOTS_COLLECTION_NAME = "specs_snapshots"
 #: Name of the per-project MongoDB collection that stores manual
 #: deadline entries.
 DEADLINES_COLLECTION_NAME = "specs_deadlines"
+
+#: Process-wide strictly-increasing counter backing `_sequence`. Wall
+#: clock `recorded_at` can tie between two ingestions taken in quick
+#: succession, and on some platforms `time.monotonic_ns()` itself has
+#: coarse resolution (tens of milliseconds) and can also tie between
+#: back-to-back calls - so neither is safe as a tiebreaker on its own.
+#: `next()` on an `itertools.count()` is a single atomic C-level
+#: operation under the GIL and hands out a distinct integer per call,
+#: so it can never tie between two ingestions, making "most recent" in
+#: get_current_snapshot always well-defined.
+_sequence_counter = itertools.count()
 
 _PERSONAL_UNITS = {
     "last_session_duration_minutes": "minutes",
@@ -136,12 +147,12 @@ def _snapshot_to_document(snapshot: SpecsSnapshot) -> Dict[str, Any]:
     document = snapshot.to_dict()
     document["_id"] = uuid.uuid4().hex
     document["recorded_at"] = snapshot.recorded_at
-    # Wall-clock `recorded_at` alone can tie between two ingestions
-    # taken in quick succession (clock resolution varies by platform).
     # `_sequence` is a monotonic tiebreaker, storage-internal only -
     # never exposed on SpecsSnapshot - so "most recent" ordering in
-    # get_current_snapshot is always well-defined.
-    document["_sequence"] = time.monotonic_ns()
+    # get_current_snapshot is always well-defined even when
+    # `recorded_at` ties. See `_sequence_counter` for why this must be
+    # a counter rather than a clock reading.
+    document["_sequence"] = next(_sequence_counter)
     return document
 
 

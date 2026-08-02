@@ -11,7 +11,7 @@ services:
       - vidur_mongo_data:/data/db
 
   chromadb:
-    image: chromadb/chroma:0.5.5
+    image: chromadb/chroma:1.5.9
     container_name: vidur-chromadb
     restart: unless-stopped
     ports:
@@ -19,7 +19,7 @@ services:
     environment:
       - ANONYMIZED_TELEMETRY=FALSE
     volumes:
-      - vidur_chroma_data:/chroma/chroma
+      - vidur_chroma_data:/data
 
 volumes:
   vidur_mongo_data:

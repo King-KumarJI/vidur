@@ -16,6 +16,11 @@ class SpecsDisabledError(SpecsModuleError):
     MAJOR_IOT_ENVIRONMENTAL_ANALYTICS feature flag is disabled."""
 
 
+class SpecsPredictionDisabledError(SpecsModuleError):
+    """Raised when the Specs ML Prediction Engine is requested while the
+    MAJOR_PREDICTIVE_DASHBOARDS feature flag is disabled."""
+
+
 class InvalidSpecsPayloadError(SpecsModuleError):
     """Raised when an ingestion or deadline payload fails structural
     validation (for example, an empty deadline title)."""

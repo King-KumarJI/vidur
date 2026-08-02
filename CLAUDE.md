@@ -64,6 +64,15 @@ Trains periodically on accumulated history pulled from the Memory module; predic
 ### Frontend Specs page
 Current-reading tiles (live-polled; `status: "missing"` shows an inline message, not a blank/fake value). Manual inputs: sleep hours, caffeine, deadlines. Real-time clock + day-of-week + deadlines list. Prediction widget with all four outputs above.
 
+### Session derivation (how "a coding session" is identified)
+No explicit session-boundary event exists -- sessions are reconstructed from the historical stream of ingested Specs snapshots (already persisted per project, not just "current"). Walk snapshots in time order; a session is a contiguous run where consecutive snapshots are within (ingestion interval + an idle-gap threshold, e.g. 10 minutes) of each other AND show activity (typing_speed_cpm > 0 or mouse_activity_rate > 0). A gap larger than the threshold, or a run with no activity signal, ends the session. Session duration = last snapshot timestamp minus first, within that run. A missing personal-activity field in some snapshots means "unknown," not "no activity" -- don't let it break the walk.
+
+### Success Score (0-100 per session)
+Derive from whatever session-level signals are actually present (reweight over what's available, never fail on a missing one): (a) duration closeness to the project's own historical average (not "longer is better"), (b) activity consistency during the session (low variance in typing/mouse rate), (c) healthy break frequency (peaks at a reasonable breaks/hour, not zero, not excessive). Document the exact weighting formula in the tracker's design notes so it's inspectable later.
+
+### Cold start
+Fewer than 5 historical sessions -> average over however many exist and say so explicitly ("average of 2 sessions"), never pad with fabricated ones. Zero history -> likelihood prediction falls back to a stated simple heuristic and clearly marks low/no confidence -- never claim a trained model produced a number when nothing has trained yet.
+
 ## Build & verify
 
 ```

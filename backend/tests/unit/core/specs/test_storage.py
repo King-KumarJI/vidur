@@ -194,6 +194,51 @@ def test_list_deadlines_orders_soonest_first():
     assert [d.title for d in deadlines] == ["Sooner", "Later"]
 
 
+def test_list_snapshots_returns_oldest_first():
+    storage = _storage()
+
+    async def scenario():
+        await storage.ingest("demo-project", personal={"sleep_hours": 6.0})
+        await storage.ingest("demo-project", personal={"sleep_hours": 7.0})
+        await storage.ingest("demo-project", personal={"sleep_hours": 8.0})
+        return await storage.list_snapshots("demo-project")
+
+    snapshots = asyncio.run(scenario())
+    assert [s.personal.sleep_hours.value for s in snapshots] == [6.0, 7.0, 8.0]
+
+
+def test_list_snapshots_empty_when_nothing_ingested():
+    storage = _storage()
+    snapshots = asyncio.run(storage.list_snapshots("demo-project"))
+    assert snapshots == []
+
+
+def test_list_snapshots_filters_by_since():
+    storage = _storage()
+
+    async def scenario():
+        # Small sleeps around the cutoff, not just a bare `datetime.now()`
+        # sandwiched between two ingests, because this platform's clock
+        # has been observed to have coarse (~15ms) resolution (see the
+        # `_sequence_counter` design note above) - without them the
+        # cutoff could tie with either ingestion's real timestamp.
+        await storage.ingest("demo-project", personal={"sleep_hours": 6.0})
+        await asyncio.sleep(0.05)
+        cutoff = datetime.now(timezone.utc)
+        await asyncio.sleep(0.05)
+        await storage.ingest("demo-project", personal={"sleep_hours": 7.0})
+        return await storage.list_snapshots("demo-project", since=cutoff)
+
+    snapshots = asyncio.run(scenario())
+    assert [s.personal.sleep_hours.value for s in snapshots] == [7.0]
+
+
+def test_list_snapshots_disabled_raises():
+    storage = _storage(enabled=False)
+    with pytest.raises(SpecsDisabledError):
+        asyncio.run(storage.list_snapshots("demo-project"))
+
+
 def test_get_calendar_excludes_past_deadlines():
     storage = _storage()
 

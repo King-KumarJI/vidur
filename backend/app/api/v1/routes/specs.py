@@ -2,28 +2,33 @@
 VIDUR API Layer
 Module: Specs
 Purpose: Routes for Specs telemetry ingestion/retrieval (Personal /
-Computer / Environmental metrics) and manual deadline/calendar entries,
-scoped to the active Project ID bound by `ProjectIsolationMiddleware`.
-Ships behind the `MAJOR_IOT_ENVIRONMENTAL_ANALYTICS` feature flag
-(Article 41-44), disabled by default - the routes always exist and
-compile, but `SpecsStorage` raises `SpecsDisabledError` (mapped to HTTP
-403 by `app.api.v1.error_handlers`) until the flag is enabled.
+Computer / Environmental metrics), manual deadline/calendar entries,
+and the Specs ML Prediction Engine's four required outputs, scoped to
+the active Project ID bound by `ProjectIsolationMiddleware`. Ingestion/
+retrieval ships behind `MAJOR_IOT_ENVIRONMENTAL_ANALYTICS`; prediction
+ships behind `MAJOR_PREDICTIVE_DASHBOARDS` (Article 41-44), both
+disabled by default - every route always exists and compiles, but the
+underlying `SpecsStorage`/`SpecsPredictionEngine` raise
+`SpecsDisabledError`/`SpecsPredictionDisabledError` (mapped to HTTP 403
+by `app.api.v1.error_handlers`) until their flag is enabled.
 
-No ML prediction and no local agent live here (out of scope for this
-module, per CLAUDE.md's Specs Module section) - just ingestion and
-storage.
+The local agent lives outside this module entirely (out of scope for
+this file, per CLAUDE.md's Specs Module section) - just ingestion,
+storage, and prediction.
 """
 
 from typing import List
 
 from fastapi import APIRouter, Depends
 
-from app.api.v1.dependencies import get_project_id, get_specs_storage
+from app.api.v1.dependencies import get_project_id, get_specs_prediction_engine, get_specs_storage
+from app.core.specs.predictor import SpecsPredictionEngine
 from app.core.specs.schemas import (
     CalendarResponse,
     DeadlineCreateRequest,
     DeadlineResponse,
     SpecsIngestRequest,
+    SpecsPredictionReportResponse,
     SpecsSnapshotResponse,
 )
 from app.core.specs.storage import SpecsStorage
@@ -81,3 +86,16 @@ async def get_calendar(
 ) -> CalendarResponse:
     calendar = await storage.get_calendar(project_id)
     return CalendarResponse.model_validate(calendar.to_dict())
+
+
+@router.get(
+    "/prediction",
+    response_model=SpecsPredictionReportResponse,
+    summary="Get the Specs ML Prediction Engine's four outputs",
+)
+async def get_specs_prediction(
+    project_id: str = Depends(get_project_id),
+    engine: SpecsPredictionEngine = Depends(get_specs_prediction_engine),
+) -> SpecsPredictionReportResponse:
+    report = await engine.predict(project_id)
+    return SpecsPredictionReportResponse.model_validate(report.to_dict())

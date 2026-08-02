@@ -9,6 +9,7 @@ of them via `app.dependency_overrides`.
 """
 
 from app.core.project_isolation import get_current_project_id
+from app.core.specs.predictor import SpecsPredictionEngine
 from app.core.specs.storage import SpecsStorage
 from app.services.ai_reasoning_service import AIReasoningService
 from app.services.config_service import ConfigService
@@ -68,3 +69,7 @@ def get_memory_service() -> MemoryService:
 
 def get_specs_storage() -> SpecsStorage:
     return SpecsStorage()
+
+
+def get_specs_prediction_engine() -> SpecsPredictionEngine:
+    return SpecsPredictionEngine()

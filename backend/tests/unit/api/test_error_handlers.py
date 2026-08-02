@@ -16,7 +16,7 @@ from app.core.inspection_engine.exceptions import InspectionDisabledError, Inspe
 from app.core.ml_prediction.exceptions import MLPredictionDisabledError
 from app.core.nlp.exceptions import NLPError
 from app.core.project_isolation.exceptions import InvalidProjectIdError, ProjectContextNotSetError
-from app.core.specs.exceptions import InvalidSpecsPayloadError, SpecsDisabledError
+from app.core.specs.exceptions import InvalidSpecsPayloadError, SpecsDisabledError, SpecsPredictionDisabledError
 from app.db.exceptions import DatabaseConnectionError
 from app.memory.exceptions import InvalidMemoryQueryError, MemoryDisabledError
 
@@ -48,6 +48,10 @@ def _build_app() -> FastAPI:
     @app.get("/raise/specs-disabled")
     def _raise_specs_disabled():
         raise SpecsDisabledError("disabled")
+
+    @app.get("/raise/specs-prediction-disabled")
+    def _raise_specs_prediction_disabled():
+        raise SpecsPredictionDisabledError("disabled")
 
     @app.get("/raise/invalid-project-id")
     def _raise_invalid_project_id():
@@ -101,6 +105,7 @@ def test_disabled_errors_map_to_403():
         "/raise/deep-learning-vision-disabled",
         "/raise/memory-disabled",
         "/raise/specs-disabled",
+        "/raise/specs-prediction-disabled",
     ):
         response = client.get(path)
         assert response.status_code == 403, path

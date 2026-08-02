@@ -254,6 +254,41 @@ class SpecsStorage:
         logger.info("Ingested specs snapshot for project_id=%s", normalized_project_id)
         return snapshot
 
+    async def list_snapshots(
+        self,
+        project_id: str,
+        since: Optional[datetime] = None,
+    ) -> List[SpecsSnapshot]:
+        """Return `project_id`'s full history of ingested SpecsSnapshots,
+        oldest first - the historical stream the Specs ML Prediction
+        Engine walks to derive sessions (CLAUDE.md Specs Module: Session
+        derivation) and to build its last-hour-window feature input.
+        `since`, if supplied, restricts the result to snapshots recorded
+        at or after that instant; filtering happens after retrieval
+        (rather than as a MongoDB query operator) since this collection
+        is small enough per project that the simpler approach is
+        preferable to the extra query-construction complexity."""
+        self._require_enabled()
+        normalized_project_id = validate_project_id_format(project_id)
+
+        with project_scope(normalized_project_id):
+            collection = self._snapshots_collection(normalized_project_id)
+            try:
+                cursor = collection.find({"project_id": normalized_project_id}).sort("recorded_at", 1)
+                documents = await cursor.to_list(length=None)
+            except PyMongoError as exc:
+                logger.error(
+                    "Failed to list specs snapshots for project_id=%s: %s", normalized_project_id, exc
+                )
+                raise SpecsPersistenceError(
+                    f"Failed to list specs snapshots for project '{normalized_project_id}': {exc}"
+                ) from exc
+
+        snapshots = [_document_to_snapshot(document) for document in documents]
+        if since is not None:
+            snapshots = [snapshot for snapshot in snapshots if snapshot.recorded_at >= since]
+        return snapshots
+
     async def get_current_snapshot(self, project_id: str) -> SpecsSnapshot:
         """Return the most recently ingested SpecsSnapshot for
         `project_id`. If nothing has been ingested yet, returns a

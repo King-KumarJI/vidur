@@ -28,3 +28,16 @@ class EnvironmentalSource(str, Enum):
 
     HARDWARE = "hardware"
     SIMULATION = "simulation"
+
+
+class ConfidenceLevel(str, Enum):
+    """How much historical evidence backs a Specs ML Prediction Engine
+    output. Never inflated - CLAUDE.md's Cold start rule requires the
+    upcoming-session prediction to "clearly mark low/no confidence" and
+    never claim a trained model produced a number when nothing has
+    trained yet."""
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"

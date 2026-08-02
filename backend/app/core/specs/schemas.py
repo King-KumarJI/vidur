@@ -163,3 +163,78 @@ class CalendarResponse(BaseModel):
     current_time: str
     day_of_week: str
     upcoming_deadlines: List[DeadlineResponse]
+
+
+class UpcomingSessionPredictionResponse(BaseModel):
+    """Mirrors `UpcomingSessionPrediction.to_dict()`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    likelihood_score: float
+    predicted_duration_minutes: Optional[float] = None
+    predicted_success_score: Optional[float] = None
+    confidence: str
+    basis: str
+
+
+class LastSessionSummaryResponse(BaseModel):
+    """Mirrors `LastSessionSummary.to_dict()`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    has_session: bool
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    duration_minutes: Optional[float] = None
+    success_score: Optional[float] = None
+    success_score_basis: Optional[str] = None
+    message: str
+
+
+class RecentSessionsComparisonResponse(BaseModel):
+    """Mirrors `RecentSessionsComparison.to_dict()`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sessions_considered: int
+    success_scores: List[float]
+    average_success_score: Optional[float] = None
+    message: str
+
+
+class WeeklyPointResponse(BaseModel):
+    """Mirrors `WeeklyPoint.to_dict()`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    day_of_week: str
+    date: str
+    total_minutes: float
+    session_count: int
+
+
+class WeeklyCodingTimeResponse(BaseModel):
+    """Mirrors `WeeklyCodingTime.to_dict()`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str
+    week_start: str
+    week_end: str
+    points: List[WeeklyPointResponse]
+
+
+class SpecsPredictionReportResponse(BaseModel):
+    """Mirrors `SpecsPredictionReport.to_dict()` - the combined payload
+    for all four Specs ML Prediction Engine outputs (CLAUDE.md Specs
+    Module: ML Prediction Engine). Ships behind the
+    `MAJOR_PREDICTIVE_DASHBOARDS` feature flag, disabled by default."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str
+    generated_at: str
+    upcoming_session: UpcomingSessionPredictionResponse
+    last_session: LastSessionSummaryResponse
+    recent_sessions: RecentSessionsComparisonResponse
+    weekly_coding_time: WeeklyCodingTimeResponse

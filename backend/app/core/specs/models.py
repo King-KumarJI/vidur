@@ -2,18 +2,20 @@
 VIDUR Core - Specs
 Submodule: Models
 Purpose: Plain, JSON-serializable data structures for the Specs module
-- Personal / Computer / Environmental telemetry snapshots, and manual
-Calendar deadline entries. Every metric is wrapped in a MetricReading
+- Personal / Computer / Environmental telemetry snapshots, manual
+Calendar deadline entries, and the ML Prediction Engine's derived
+sessions and four required prediction outputs (CLAUDE.md Specs Module:
+ML Prediction Engine). Every metric is wrapped in a MetricReading
 carrying an explicit MetricStatus, so a missing sensor or manual input
 is always reported as `status: "missing"`, never fabricated or
 silently defaulted (CLAUDE.md Specs Module: Missing-sensor handling).
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
-from app.core.specs.enums import MetricStatus
+from app.core.specs.enums import ConfidenceLevel, MetricStatus
 
 
 @dataclass(frozen=True)
@@ -168,4 +170,177 @@ class CalendarSnapshot:
             "current_time": self.current_time.isoformat(),
             "day_of_week": self.day_of_week,
             "upcoming_deadlines": [deadline.to_dict() for deadline in self.upcoming_deadlines],
+        }
+
+
+@dataclass(frozen=True)
+class SessionRecord:
+    """One reconstructed coding session (CLAUDE.md Specs Module:
+    Session derivation) - a contiguous run of ingested snapshots
+    spanning `started_at` to `ended_at`, with the aggregate activity
+    signals `success_score.py` needs to score it and `predictor.py`
+    needs to summarize/compare it. `success_score`/`success_score_basis`
+    start unset (a session is derived before it is scored) and are
+    filled in by replacing the frozen instance once a score exists."""
+
+    project_id: str
+    started_at: datetime
+    ended_at: datetime
+    duration_minutes: float
+    snapshot_count: int
+    break_count: int
+    breaks_per_hour: Optional[float]
+    avg_typing_speed_cpm: Optional[float]
+    typing_speed_stdev: Optional[float]
+    avg_mouse_activity_rate: Optional[float]
+    mouse_activity_stdev: Optional[float]
+    success_score: Optional[float] = None
+    success_score_basis: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "project_id": self.project_id,
+            "started_at": self.started_at.isoformat(),
+            "ended_at": self.ended_at.isoformat(),
+            "duration_minutes": self.duration_minutes,
+            "snapshot_count": self.snapshot_count,
+            "break_count": self.break_count,
+            "breaks_per_hour": self.breaks_per_hour,
+            "avg_typing_speed_cpm": self.avg_typing_speed_cpm,
+            "typing_speed_stdev": self.typing_speed_stdev,
+            "avg_mouse_activity_rate": self.avg_mouse_activity_rate,
+            "mouse_activity_stdev": self.mouse_activity_stdev,
+            "success_score": self.success_score,
+            "success_score_basis": self.success_score_basis,
+        }
+
+
+@dataclass(frozen=True)
+class UpcomingSessionPrediction:
+    """Required output 1 (CLAUDE.md ML Prediction Engine): likelihood a
+    session starts now, plus the predicted outcome (duration/success
+    score) if one does."""
+
+    likelihood_score: float
+    predicted_duration_minutes: Optional[float]
+    predicted_success_score: Optional[float]
+    confidence: ConfidenceLevel
+    basis: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "likelihood_score": self.likelihood_score,
+            "predicted_duration_minutes": self.predicted_duration_minutes,
+            "predicted_success_score": self.predicted_success_score,
+            "confidence": self.confidence.value,
+            "basis": self.basis,
+        }
+
+
+@dataclass(frozen=True)
+class LastSessionSummary:
+    """Required output 2 (CLAUDE.md ML Prediction Engine): the most
+    recent session's duration and computed Success Score."""
+
+    has_session: bool
+    started_at: Optional[datetime]
+    ended_at: Optional[datetime]
+    duration_minutes: Optional[float]
+    success_score: Optional[float]
+    success_score_basis: Optional[str]
+    message: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "has_session": self.has_session,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "ended_at": self.ended_at.isoformat() if self.ended_at else None,
+            "duration_minutes": self.duration_minutes,
+            "success_score": self.success_score,
+            "success_score_basis": self.success_score_basis,
+            "message": self.message,
+        }
+
+
+@dataclass(frozen=True)
+class RecentSessionsComparison:
+    """Required output 3 (CLAUDE.md ML Prediction Engine): average
+    Success Score across the up-to-5 most recent sessions. Cold start
+    (fewer than 5) averages over however many exist and says so
+    explicitly rather than padding with fabricated sessions."""
+
+    sessions_considered: int
+    success_scores: List[float]
+    average_success_score: Optional[float]
+    message: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "sessions_considered": self.sessions_considered,
+            "success_scores": self.success_scores,
+            "average_success_score": self.average_success_score,
+            "message": self.message,
+        }
+
+
+@dataclass(frozen=True)
+class WeeklyPoint:
+    """One day's aggregated coding time within a Mon-Sun weekly
+    breakdown. A day with no session still gets an explicit point with
+    `total_minutes: 0.0` - never omitted or interpolated (CLAUDE.md ML
+    Prediction Engine: Weekly zero-fill)."""
+
+    day_of_week: str
+    date: date
+    total_minutes: float
+    session_count: int
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "day_of_week": self.day_of_week,
+            "date": self.date.isoformat(),
+            "total_minutes": self.total_minutes,
+            "session_count": self.session_count,
+        }
+
+
+@dataclass(frozen=True)
+class WeeklyCodingTime:
+    """Required output 4 (CLAUDE.md ML Prediction Engine): a Mon-Sun
+    weekly coding-time breakdown that always emits exactly 7 points."""
+
+    project_id: str
+    week_start: date
+    week_end: date
+    points: List[WeeklyPoint]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "project_id": self.project_id,
+            "week_start": self.week_start.isoformat(),
+            "week_end": self.week_end.isoformat(),
+            "points": [point.to_dict() for point in self.points],
+        }
+
+
+@dataclass(frozen=True)
+class SpecsPredictionReport:
+    """Combined report bundling all four ML Prediction Engine outputs
+    for a single project, as returned by `GET /specs/prediction`."""
+
+    project_id: str
+    generated_at: datetime
+    upcoming_session: UpcomingSessionPrediction
+    last_session: LastSessionSummary
+    recent_sessions: RecentSessionsComparison
+    weekly_coding_time: WeeklyCodingTime
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "project_id": self.project_id,
+            "generated_at": self.generated_at.isoformat(),
+            "upcoming_session": self.upcoming_session.to_dict(),
+            "last_session": self.last_session.to_dict(),
+            "recent_sessions": self.recent_sessions.to_dict(),
+            "weekly_coding_time": self.weekly_coding_time.to_dict(),
         }

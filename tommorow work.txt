@@ -1,4 +1,0 @@
-need to push every new change on git
-accquire all the pip file from claude
-test the deep learning vision section
-check the specs section

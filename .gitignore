@@ -7,7 +7,8 @@ frontend/node_modules/
 frontend/dist/
 backend/logs/
 frontend/.env
-"running command.txt"
+running command.txt
+tommorow work.txt
 firmware/.pio/
 firmware/.pio-venv/
 firmware/.pio-venv/

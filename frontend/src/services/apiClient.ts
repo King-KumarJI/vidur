@@ -2,7 +2,10 @@ import { API_BASE_URL, API_V1_PREFIX, PROJECT_ID_HEADER } from '../config/env'
 import { getActiveProjectId } from './projectId'
 import type {
   AppInfoResponse,
+  CalendarResponse,
   DatabaseHealthResponse,
+  DeadlineCreateRequest,
+  DeadlineResponse,
   FeatureFlagsResponse,
   HealthScoreTrendResponse,
   InspectionReportResponse,
@@ -13,6 +16,9 @@ import type {
   ProjectResourcesResponse,
   ProjectValidationResponse,
   ReasoningReportResponse,
+  SpecsIngestRequest,
+  SpecsPredictionReportResponse,
+  SpecsSnapshotResponse,
   VisualComparisonReportResponse,
   VisualComparisonRunRequest,
 } from './types'
@@ -220,4 +226,38 @@ export function getHealthScoreTrend(
     query: { record_types: recordTypes, limit },
     projectScoped: true,
   })
+}
+
+// ---- Specs (project-scoped; ingestion/retrieval behind MAJOR_IOT_ENVIRONMENTAL_ANALYTICS, prediction behind MAJOR_PREDICTIVE_DASHBOARDS) ----
+
+export function ingestSpecs(body: SpecsIngestRequest): Promise<SpecsSnapshotResponse> {
+  return request<SpecsSnapshotResponse>(`${API_V1_PREFIX}/specs/ingest`, {
+    method: 'POST',
+    body,
+    projectScoped: true,
+  })
+}
+
+export function getCurrentSpecsSnapshot(): Promise<SpecsSnapshotResponse> {
+  return request<SpecsSnapshotResponse>(`${API_V1_PREFIX}/specs/current`, { projectScoped: true })
+}
+
+export function addSpecsDeadline(body: DeadlineCreateRequest): Promise<DeadlineResponse> {
+  return request<DeadlineResponse>(`${API_V1_PREFIX}/specs/deadlines`, {
+    method: 'POST',
+    body,
+    projectScoped: true,
+  })
+}
+
+export function listSpecsDeadlines(): Promise<DeadlineResponse[]> {
+  return request<DeadlineResponse[]>(`${API_V1_PREFIX}/specs/deadlines`, { projectScoped: true })
+}
+
+export function getSpecsCalendar(): Promise<CalendarResponse> {
+  return request<CalendarResponse>(`${API_V1_PREFIX}/specs/calendar`, { projectScoped: true })
+}
+
+export function getSpecsPrediction(): Promise<SpecsPredictionReportResponse> {
+  return request<SpecsPredictionReportResponse>(`${API_V1_PREFIX}/specs/prediction`, { projectScoped: true })
 }

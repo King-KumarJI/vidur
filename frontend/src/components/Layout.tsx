@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/nlp', label: 'NLP' },
   { to: '/ml-prediction', label: 'ML Prediction' },
   { to: '/deep-learning-vision', label: 'Deep Learning Vision' },
+  { to: '/specs', label: 'Specs' },
   { to: '/memory', label: 'Memory' },
   { to: '/settings', label: 'Feature Flags / Settings' },
 ]

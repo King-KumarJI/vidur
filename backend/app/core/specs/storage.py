@@ -20,7 +20,7 @@ to a separate engine.py, matching the module scope as specified.
 
 import itertools
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from pymongo.errors import PyMongoError
@@ -88,6 +88,41 @@ _ENVIRONMENTAL_UNITS = {
     "noise_level_db": "db",
 }
 
+#: Section name -> {field_name: unit}, for the merge get_current_snapshot
+#: performs across a project's entire ingestion history (CLAUDE.md Specs
+#: Module: Current snapshot semantics - merge, not replace).
+_ALL_METRIC_SECTIONS = {
+    "personal": _PERSONAL_UNITS,
+    "computer": _COMPUTER_UNITS,
+    "environmental": _ENVIRONMENTAL_UNITS,
+}
+
+
+def _as_utc_aware(value: datetime) -> datetime:
+    """Normalize a datetime to UTC-aware.
+
+    The shared `AsyncIOMotorClient` (see `app.db.mongodb.client`) is not
+    configured with `tz_aware=True`, so Motor/PyMongo hands back naive
+    datetimes for every BSON date field read from a document - even
+    though every timestamp this module writes is stamped via
+    `utc_now()` (timezone-aware). Every other Specs component -
+    `predictor.py`'s `now - timedelta(...)` window and
+    `SpecsPredictionEngine`'s `clock` in particular - compares against
+    an aware `datetime.now(timezone.utc)`, so a naive value read straight
+    back from Mongo crashes the very first comparison with
+    `TypeError: can't compare offset-naive and offset-aware datetimes`.
+    BSON dates have no timezone concept at all (they are UTC millis on
+    the wire), so treating a naive value as UTC - rather than as
+    "unknown, assume local" - is the only reading consistent with what
+    was actually written. Applied at every point a datetime crosses the
+    Mongo boundary (read from a document, or accepted from a caller that
+    may not have attached a timezone) so nothing downstream ever has to
+    guess whether a given datetime is naive or aware.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
 
 def _reading(value: Optional[float], unit: str, source: Optional[str] = None) -> MetricReading:
     if value is None:
@@ -143,6 +178,43 @@ def _environmental_from_document(data: Dict[str, Any]) -> EnvironmentalMetrics:
     )
 
 
+def _merge_latest_readings(documents: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Merge each individual metric field's most recent PRESENT reading
+    across `documents` (already sorted newest-first), so a manual
+    ingest that only reports a subset of fields (e.g. just
+    `sleep_hours`) never blanks out fields the local agent reported in
+    an earlier, still-current ingestion (CLAUDE.md Specs Module:
+    Current snapshot semantics - merge, not replace). Scans
+    newest-to-oldest and stops early once every field has been
+    resolved. A field is only left `missing` if no document in the
+    project's entire history ever reported it as present.
+    """
+    merged: Dict[str, Dict[str, Any]] = {section: {} for section in _ALL_METRIC_SECTIONS}
+    pending: Dict[str, set] = {section: set(fields) for section, fields in _ALL_METRIC_SECTIONS.items()}
+
+    for document in documents:
+        if not any(pending.values()):
+            break
+        for section, field_names in pending.items():
+            if not field_names:
+                continue
+            section_data = document.get(section, {})
+            resolved = set()
+            for field_name in field_names:
+                field_data = section_data.get(field_name)
+                if field_data is not None and field_data.get("status") == MetricStatus.PRESENT.value:
+                    merged[section][field_name] = field_data
+                    resolved.add(field_name)
+            field_names -= resolved
+
+    for section, field_names in pending.items():
+        units = _ALL_METRIC_SECTIONS[section]
+        for field_name in field_names:
+            merged[section][field_name] = _reading(None, units[field_name]).to_dict()
+
+    return merged
+
+
 def _snapshot_to_document(snapshot: SpecsSnapshot) -> Dict[str, Any]:
     document = snapshot.to_dict()
     document["_id"] = uuid.uuid4().hex
@@ -159,7 +231,7 @@ def _snapshot_to_document(snapshot: SpecsSnapshot) -> Dict[str, Any]:
 def _document_to_snapshot(document: Dict[str, Any]) -> SpecsSnapshot:
     return SpecsSnapshot(
         project_id=document["project_id"],
-        recorded_at=document["recorded_at"],
+        recorded_at=_as_utc_aware(document["recorded_at"]),
         personal=_personal_from_document(document["personal"]),
         computer=_computer_from_document(document["computer"]),
         environmental=_environmental_from_document(document["environmental"]),
@@ -182,8 +254,8 @@ def _deadline_from_document(document: Dict[str, Any]) -> Deadline:
         deadline_id=document["_id"],
         project_id=document["project_id"],
         title=document["title"],
-        due_at=document["due_at"],
-        created_at=document["created_at"],
+        due_at=_as_utc_aware(document["due_at"]),
+        created_at=_as_utc_aware(document["created_at"]),
         notes=document.get("notes"),
     )
 
@@ -290,20 +362,29 @@ class SpecsStorage:
         return snapshots
 
     async def get_current_snapshot(self, project_id: str) -> SpecsSnapshot:
-        """Return the most recently ingested SpecsSnapshot for
-        `project_id`. If nothing has been ingested yet, returns a
-        snapshot with every metric explicitly marked missing rather
-        than fabricating values or raising an error."""
+        """Return `project_id`'s current Specs snapshot, merged field-by
+        -field across its *entire* ingestion history rather than taken
+        from a single most-recent document (CLAUDE.md Specs Module:
+        Current snapshot semantics - merge, not replace). Independent
+        sources - the local agent's periodic computer/personal/
+        environmental posts, the frontend's manual sleep/caffeine form -
+        each report only the fields they know about, at different
+        times; for every individual metric field this returns the most
+        recently reported value for that field across all ingestions,
+        so a manual ingest of just `{sleep_hours}` cannot blank out
+        CPU/RAM/typing-speed/etc. reported by an earlier, still-current
+        agent ingestion. A field is marked missing only if it has
+        genuinely never been reported. If nothing has been ingested at
+        all, returns a snapshot with every metric explicitly marked
+        missing rather than fabricating values or raising an error."""
         self._require_enabled()
         normalized_project_id = validate_project_id_format(project_id)
 
         with project_scope(normalized_project_id):
             collection = self._snapshots_collection(normalized_project_id)
             try:
-                document = await collection.find_one(
-                    {"project_id": normalized_project_id},
-                    sort=[("recorded_at", -1), ("_sequence", -1)],
-                )
+                cursor = collection.find({"project_id": normalized_project_id})
+                documents = await cursor.to_list(length=None)
             except PyMongoError as exc:
                 logger.error(
                     "Failed to load current specs snapshot for project_id=%s: %s",
@@ -315,7 +396,7 @@ class SpecsStorage:
                     f"'{normalized_project_id}': {exc}"
                 ) from exc
 
-        if document is None:
+        if not documents:
             return SpecsSnapshot(
                 project_id=normalized_project_id,
                 recorded_at=utc_now(),
@@ -324,7 +405,18 @@ class SpecsStorage:
                 environmental=_build_environmental(None),
             )
 
-        return _document_to_snapshot(document)
+        # Newest-first, `_sequence` breaking ties on `recorded_at` - see
+        # `_sequence_counter` for why a monotonic counter is required.
+        documents.sort(key=lambda document: (document["recorded_at"], document["_sequence"]), reverse=True)
+        merged = _merge_latest_readings(documents)
+
+        return SpecsSnapshot(
+            project_id=normalized_project_id,
+            recorded_at=_as_utc_aware(documents[0]["recorded_at"]),
+            personal=_personal_from_document(merged["personal"]),
+            computer=_computer_from_document(merged["computer"]),
+            environmental=_environmental_from_document(merged["environmental"]),
+        )
 
     async def add_deadline(
         self,

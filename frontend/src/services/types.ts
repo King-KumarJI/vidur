@@ -421,3 +421,143 @@ export interface MemoryHistoryResponse {
 export interface HealthScoreTrendResponse {
   health_scores: number[]
 }
+
+// ---- core/specs/schemas.py ----
+
+export interface PersonalMetricsIngestRequest {
+  last_session_duration_minutes?: number
+  sleep_hours?: number
+  caffeine_intake_mg?: number
+  typing_speed_cpm?: number
+  mouse_activity_rate?: number
+  break_frequency_per_hour?: number
+}
+
+export interface ComputerMetricsIngestRequest {
+  cpu_usage_percent?: number
+  ram_usage_percent?: number
+  disk_io_kbps?: number
+  internet_latency_ms?: number
+}
+
+export interface EnvironmentalMetricsIngestRequest {
+  temperature_celsius?: number
+  humidity_percent?: number
+  ambient_light_lux?: number
+  noise_level_db?: number
+  source?: 'hardware' | 'simulation'
+}
+
+export interface SpecsIngestRequest {
+  personal?: PersonalMetricsIngestRequest
+  computer?: ComputerMetricsIngestRequest
+  environmental?: EnvironmentalMetricsIngestRequest
+}
+
+export interface MetricReadingResponse {
+  status: string
+  value?: number | null
+  unit?: string | null
+  source?: string | null
+}
+
+export interface PersonalMetricsResponse {
+  last_session_duration_minutes: MetricReadingResponse
+  sleep_hours: MetricReadingResponse
+  caffeine_intake_mg: MetricReadingResponse
+  typing_speed_cpm: MetricReadingResponse
+  mouse_activity_rate: MetricReadingResponse
+  break_frequency_per_hour: MetricReadingResponse
+}
+
+export interface ComputerMetricsResponse {
+  cpu_usage_percent: MetricReadingResponse
+  ram_usage_percent: MetricReadingResponse
+  disk_io_kbps: MetricReadingResponse
+  internet_latency_ms: MetricReadingResponse
+}
+
+export interface EnvironmentalMetricsResponse {
+  temperature_celsius: MetricReadingResponse
+  humidity_percent: MetricReadingResponse
+  ambient_light_lux: MetricReadingResponse
+  noise_level_db: MetricReadingResponse
+}
+
+export interface SpecsSnapshotResponse {
+  project_id: string
+  recorded_at: string
+  personal: PersonalMetricsResponse
+  computer: ComputerMetricsResponse
+  environmental: EnvironmentalMetricsResponse
+}
+
+export interface DeadlineCreateRequest {
+  title: string
+  due_at: string
+  notes?: string
+}
+
+export interface DeadlineResponse {
+  deadline_id: string
+  project_id: string
+  title: string
+  due_at: string
+  created_at: string
+  notes?: string | null
+}
+
+export interface CalendarResponse {
+  project_id: string
+  current_time: string
+  day_of_week: string
+  upcoming_deadlines: DeadlineResponse[]
+}
+
+export interface UpcomingSessionPredictionResponse {
+  likelihood_score: number
+  predicted_duration_minutes?: number | null
+  predicted_success_score?: number | null
+  confidence: string
+  basis: string
+}
+
+export interface LastSessionSummaryResponse {
+  has_session: boolean
+  started_at?: string | null
+  ended_at?: string | null
+  duration_minutes?: number | null
+  success_score?: number | null
+  success_score_basis?: string | null
+  message: string
+}
+
+export interface RecentSessionsComparisonResponse {
+  sessions_considered: number
+  success_scores: number[]
+  average_success_score?: number | null
+  message: string
+}
+
+export interface WeeklyPointResponse {
+  day_of_week: string
+  date: string
+  total_minutes: number
+  session_count: number
+}
+
+export interface WeeklyCodingTimeResponse {
+  project_id: string
+  week_start: string
+  week_end: string
+  points: WeeklyPointResponse[]
+}
+
+export interface SpecsPredictionReportResponse {
+  project_id: string
+  generated_at: string
+  upcoming_session: UpcomingSessionPredictionResponse
+  last_session: LastSessionSummaryResponse
+  recent_sessions: RecentSessionsComparisonResponse
+  weekly_coding_time: WeeklyCodingTimeResponse
+}

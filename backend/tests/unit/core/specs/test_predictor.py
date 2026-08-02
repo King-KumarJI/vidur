@@ -12,7 +12,7 @@ this codebase's established DI-for-tests pattern
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -26,6 +26,7 @@ from app.core.specs.models import (
     SpecsSnapshot,
 )
 from app.core.specs.predictor import SpecsPredictionEngine
+from app.core.specs.storage import SpecsStorage
 
 _MISSING = MetricReading.missing()
 
@@ -181,3 +182,100 @@ def test_predict_cold_start_never_claims_trained_model_confidence():
     engine = _engine([])
     report = asyncio.run(engine.predict("demo-project"))
     assert "not a trained-model prediction" in report.upcoming_session.basis
+
+
+class _NaiveMongoCollection:
+    """Mimics a *real* (non `tz_aware`) Motor/PyMongo collection: BSON
+    date fields round-trip as naive datetimes on read even though the
+    value written was aware - see `app.db.mongodb.client`
+    (`AsyncIOMotorClient` is built without `tz_aware=True`).
+
+    Every other test in this file drives `SpecsPredictionEngine`
+    through `_FakeStorage`, which hands back the exact `SpecsSnapshot`
+    objects it was constructed with - always aware, since the tests
+    build them with `tzinfo=timezone.utc` throughout. That never
+    reproduces the reported bug (`GET /specs/prediction` 500ing against
+    real MongoDB) because it never exercises the Mongo boundary at all.
+    This fake does, by routing through the real `SpecsStorage` -
+    `_document_to_snapshot`'s `_as_utc_aware` normalization is the only
+    thing standing between this and `TypeError: can't compare
+    offset-naive and offset-aware datetimes` in `predictor.py`'s
+    `now - timedelta(hours=1)` window comparison.
+    """
+
+    def __init__(self) -> None:
+        self._documents: List[Dict[str, Any]] = []
+
+    @staticmethod
+    def _strip_tz(document: Dict[str, Any]) -> Dict[str, Any]:
+        stored = dict(document)
+        for key, value in stored.items():
+            if isinstance(value, datetime) and value.tzinfo is not None:
+                stored[key] = value.astimezone(timezone.utc).replace(tzinfo=None)
+        return stored
+
+    async def insert_one(self, document: Dict[str, Any]) -> None:
+        self._documents.append(self._strip_tz(document))
+
+    async def find_one(self, query: Dict[str, Any], sort=None) -> Optional[Dict[str, Any]]:
+        matches = [d for d in self._documents if all(d.get(k) == v for k, v in query.items())]
+        if sort:
+            for key, direction in reversed(sort):
+                matches = sorted(matches, key=lambda d: d[key], reverse=(direction == -1))
+        return matches[0] if matches else None
+
+    def find(self, query: Dict[str, Any]):
+        matches = [d for d in self._documents if all(d.get(k) == v for k, v in query.items())]
+
+        class _Cursor:
+            def __init__(self, docs: List[Dict[str, Any]]) -> None:
+                self._docs = docs
+
+            def sort(self, key: str, direction: int) -> "_Cursor":
+                self._docs = sorted(self._docs, key=lambda d: d[key], reverse=(direction == -1))
+                return self
+
+            async def to_list(self, length=None) -> List[Dict[str, Any]]:
+                return list(self._docs) if length is None else list(self._docs[:length])
+
+        return _Cursor(matches)
+
+
+class _NaiveMongoDatabase:
+    def __init__(self) -> None:
+        self._collections: Dict[str, _NaiveMongoCollection] = {}
+
+    def __getitem__(self, name: str) -> _NaiveMongoCollection:
+        return self._collections.setdefault(name, _NaiveMongoCollection())
+
+
+def test_predict_survives_naive_datetimes_returned_by_real_mongo():
+    """Integration reproduction of the reported bug: `GET
+    /specs/prediction` 500ing with `TypeError: can't compare
+    offset-naive and offset-aware datetimes` against real MongoDB. Runs
+    `SpecsPredictionEngine.predict` through the *real* `SpecsStorage`
+    (not `_FakeStorage`) backed by `_NaiveMongoCollection`, which - like
+    real Motor without `tz_aware=True` - returns naive datetimes for
+    every BSON date field regardless of the aware value that was
+    written. Before `_as_utc_aware` was applied on every Mongo read in
+    `storage.py`, `snapshot.recorded_at >= now - timedelta(hours=1)` in
+    `_predict_upcoming_session` raised exactly that TypeError the first
+    time a real (non-fake) Mongo collection was involved."""
+    database = _NaiveMongoDatabase()
+    registry = FeatureFlagRegistry(
+        overrides=FeatureFlagSettings(
+            MAJOR_IOT_ENVIRONMENTAL_ANALYTICS=True,
+            MAJOR_PREDICTIVE_DASHBOARDS=True,
+        )
+    )
+    storage = SpecsStorage(database_provider=lambda project_id: database, feature_flag_registry=registry)
+    engine = SpecsPredictionEngine(storage=storage, feature_flag_registry=registry)
+
+    async def scenario():
+        await storage.ingest("demo-project", personal={"typing_speed_cpm": 40.0})
+        return await engine.predict("demo-project")
+
+    report = asyncio.run(scenario())
+
+    assert report.project_id == "demo-project"
+    assert len(report.weekly_coding_time.points) == 7

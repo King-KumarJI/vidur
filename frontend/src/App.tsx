@@ -10,6 +10,7 @@ import { MLPredictionPage } from './pages/MLPredictionPage'
 import { MemoryPage } from './pages/MemoryPage'
 import { NLPPage } from './pages/NLPPage'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { SpecsPage } from './pages/SpecsPage'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route path="nlp" element={<NLPPage />} />
             <Route path="ml-prediction" element={<MLPredictionPage />} />
             <Route path="deep-learning-vision" element={<DeepLearningVisionPage />} />
+            <Route path="specs" element={<SpecsPage />} />
             <Route path="memory" element={<MemoryPage />} />
             <Route path="settings" element={<FeatureFlagsPage />} />
           </Route>

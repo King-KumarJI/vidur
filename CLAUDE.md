@@ -73,6 +73,9 @@ Derive from whatever session-level signals are actually present (reweight over w
 ### Cold start
 Fewer than 5 historical sessions -> average over however many exist and say so explicitly ("average of 2 sessions"), never pad with fabricated ones. Zero history -> likelihood prediction falls back to a stated simple heuristic and clearly marks low/no confidence -- never claim a trained model produced a number when nothing has trained yet.
 
+### Current snapshot semantics (merge, not replace)
+Multiple independent sources ingest data for the same project over time: the local agent posts computer/personal/environmental metrics on its own interval, and the frontend's manual-input form posts sleep/caffeine independently, at different times. get_current_snapshot must return, for EACH individual metric field, the most recently reported value for that field across ALL ingestions -- never just the fields present in the single most recent ingest call. A manual ingest containing only {sleep_hours, caffeine_intake_mg} must not blank out CPU/RAM/typing-speed/etc. that were reported by an earlier, still-current agent ingestion. Only mark a field "missing" if it has genuinely never been reported at all.
+
 ## Build & verify
 
 ```

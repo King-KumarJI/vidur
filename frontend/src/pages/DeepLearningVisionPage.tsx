@@ -17,10 +17,24 @@ interface SnapshotDraft {
   label: string
   elements: LayoutElementRow[]
   imageJson: string
+  imageFileName: string | null
+  imageBase64: string | null
 }
 
 function emptySnapshot(label: string): SnapshotDraft {
-  return { label, elements: [], imageJson: '' }
+  return { label, elements: [], imageJson: '', imageFileName: null, imageBase64: null }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1] ?? '')
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 function newRow(): LayoutElementRow {
@@ -40,6 +54,7 @@ function buildSnapshotInput(draft: SnapshotDraft): VisualSnapshotInput {
   }
   return {
     label: draft.label,
+    image_bytes_base64: draft.imageBase64 ?? undefined,
     image,
     layout: draft.elements.length > 0
       ? { elements: draft.elements.map(({ rowId: _rowId, ...el }) => el) }
@@ -85,7 +100,9 @@ export function DeepLearningVisionPage() {
         <p className="text-sm text-vidur-text-muted">
           Major Project capability (feature flag <code>MAJOR_DEEP_LEARNING_VISUAL_INSPECTION</code>,
           disabled by default). Compares two caller-supplied visual snapshots for pixel and layout
-          regressions. Provide layout elements manually, or paste a raw pixel-image JSON blob.
+          regressions. Upload a real screenshot for each snapshot (compared via OpenCLIP embeddings, or
+          the automatic OpenCV/SSIM/perceptual-hash fallback), and/or provide layout elements manually
+          or a raw pixel-image JSON blob.
         </p>
       </div>
 
@@ -94,8 +111,8 @@ export function DeepLearningVisionPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SnapshotEditor title="Baseline Snapshot" draft={baseline} onChange={setBaseline} />
-            <SnapshotEditor title="Current Snapshot" draft={current} onChange={setCurrent} />
+            <SnapshotEditor title="Baseline Snapshot" draft={baseline} onChange={setBaseline} onFileError={setError} />
+            <SnapshotEditor title="Current Snapshot" draft={current} onChange={setCurrent} onFileError={setError} />
           </div>
 
           <Card title="Canvas Dimensions (optional)">
@@ -122,6 +139,23 @@ export function DeepLearningVisionPage() {
               <p className="text-sm text-vidur-text">{report.summary}</p>
             </div>
           </Card>
+
+          {report.embedding_diff ? (
+            <Card title="Embedding Comparison (real image)">
+              <div className="mb-1 flex items-center gap-2">
+                <Badge label={report.embedding_diff.risk_level} />
+                <span className="text-xs uppercase text-vidur-text-muted">{report.embedding_diff.method}</span>
+              </div>
+              <p className="text-sm text-vidur-text-muted">{report.embedding_diff.detail}</p>
+              <p className="mt-1 text-xs text-vidur-text-muted">
+                similarity: {report.embedding_diff.similarity.toFixed(4)}
+                {report.embedding_diff.ssim_score != null ? ` · SSIM: ${report.embedding_diff.ssim_score.toFixed(4)}` : ''}
+                {report.embedding_diff.phash_hamming_distance != null
+                  ? ` · pHash distance: ${report.embedding_diff.phash_hamming_distance}`
+                  : ''}
+              </p>
+            </Card>
+          ) : null}
 
           {report.pixel_diff ? (
             <Card title="Pixel Diff">
@@ -191,10 +225,12 @@ function SnapshotEditor({
   title,
   draft,
   onChange,
+  onFileError,
 }: {
   title: string
   draft: SnapshotDraft
   onChange: (draft: SnapshotDraft) => void
+  onFileError: (error: unknown) => void
 }) {
   function updateElement(rowId: string, patch: Partial<LayoutElementRow>) {
     onChange({
@@ -210,9 +246,46 @@ function SnapshotEditor({
     })
   }
 
+  async function handleFileChange(fileList: FileList | null) {
+    const file = fileList?.[0]
+    if (!file) {
+      onChange({ ...draft, imageFileName: null, imageBase64: null })
+      return
+    }
+    try {
+      const imageBase64 = await fileToBase64(file)
+      onChange({ ...draft, imageFileName: file.name, imageBase64 })
+    } catch (err) {
+      onFileError(err)
+    }
+  }
+
   return (
     <Card title={title}>
       <TextInput value={draft.label} onChange={(label) => onChange({ ...draft, label })} placeholder="Snapshot label" className="w-full" />
+
+      <div className="mt-3">
+        <p className="mb-1 text-xs uppercase text-vidur-text-muted">Screenshot (real image)</p>
+        <input
+          key={draft.imageFileName ?? 'empty'}
+          type="file"
+          accept="image/*"
+          onChange={(e) => void handleFileChange(e.target.files)}
+          className="block w-full text-xs text-vidur-text-muted file:mr-3 file:rounded-md file:border-0 file:bg-vidur-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-vidur-accent/80"
+        />
+        {draft.imageFileName ? (
+          <p className="mt-1 text-xs text-vidur-text-muted">
+            Selected: <span className="font-mono text-vidur-text">{draft.imageFileName}</span>{' '}
+            <button
+              type="button"
+              onClick={() => onChange({ ...draft, imageFileName: null, imageBase64: null })}
+              className="text-vidur-bad hover:underline"
+            >
+              clear
+            </button>
+          </p>
+        ) : null}
+      </div>
 
       <div className="mt-3">
         <div className="mb-1 flex items-center justify-between">

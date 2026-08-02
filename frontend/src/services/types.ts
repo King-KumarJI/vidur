@@ -320,6 +320,7 @@ export interface LayoutSnapshotInput {
 export interface VisualSnapshotInput {
   label: string
   captured_at?: string | null
+  image_bytes_base64?: string | null
   image?: PixelImageInput | null
   layout?: LayoutSnapshotInput | null
 }
@@ -329,6 +330,15 @@ export interface VisualComparisonRunRequest {
   current: VisualSnapshotInput
   canvas_width?: number | null
   canvas_height?: number | null
+}
+
+export interface ImageEmbeddingComparisonResultResponse {
+  method: string
+  similarity: number
+  risk_level: string
+  detail: string
+  ssim_score?: number | null
+  phash_hamming_distance?: number | null
 }
 
 export interface BoundingBoxResponse {
@@ -383,6 +393,7 @@ export interface VisualComparisonReportResponse {
   baseline_label: string
   current_label: string
   generated_at: string
+  embedding_diff?: ImageEmbeddingComparisonResultResponse | null
   pixel_diff?: PixelDiffResultResponse | null
   layout_diff?: LayoutDiffResultResponse | null
   consistency_issues: LayoutConsistencyIssueResponse[]

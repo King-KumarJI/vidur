@@ -4,8 +4,9 @@ VIDUR Core - NLP Package.
 Single import surface for running NLP analysis over a project root:
 document discovery (README, dependency manifest, Python source),
 documented/implemented intent extraction, requirement-to-
-implementation consistency checking, and Major-tier TF-IDF semantic
-similarity reasoning, aggregated into a single NLPReport.
+implementation consistency checking (with spaCy-backed linguistic
+fallback matching), and Major-tier TF-IDF semantic similarity
+reasoning, aggregated into a single NLPReport.
 """
 
 from app.core.nlp.code_intent_extractor import ImplementedIntentExtractor
@@ -20,6 +21,7 @@ from app.core.nlp.exceptions import (
     NLPError,
 )
 from app.core.nlp.intent_extractor import DocumentedIntentExtractor
+from app.core.nlp.linguistic_analyzer import LinguisticAnalyzer
 from app.core.nlp.models import (
     ConsistencyFinding,
     DiscoveredDocument,
@@ -38,6 +40,7 @@ __all__ = [
     "DocumentedIntentExtractor",
     "ImplementedIntentExtractor",
     "ConsistencyChecker",
+    "LinguisticAnalyzer",
     "SemanticSimilarityReasoner",
     "NLPReportGenerator",
     "DocumentKind",

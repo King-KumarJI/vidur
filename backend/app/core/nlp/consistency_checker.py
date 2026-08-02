@@ -7,13 +7,25 @@ declaration mismatches, and keyword-overlap traceability of declared
 requirements and features into the implementation. Advisory only -
 per Article 10-11, VIDUR never edits documentation or code to resolve
 a finding it raises here.
+
+Requirement/feature traceability is checked first by exact stdlib
+keyword overlap (unchanged), then - only when that check would flag a
+claim as untraceable - by a second pass over the same
+MIN_KEYWORD_OVERLAP_RATIO threshold using LinguisticAnalyzer's
+spaCy-backed, morphology-normalized keywords (lemmas, noun chunks,
+named entities). This catches paraphrased or loosely-worded
+documentation (tense/plural variation the exact-match pass cannot see)
+without weakening detection of genuinely unimplemented requirements: a
+claim is only rescued if it has real lemma-level overlap with the
+implementation corpus, never unconditionally.
 """
 
 import re
-from typing import List, Set
+from typing import List, Optional, Set
 
 from app.core.inspection_engine.enums import Severity
 from app.core.nlp.enums import ConsistencyCategory
+from app.core.nlp.linguistic_analyzer import LinguisticAnalyzer
 from app.core.nlp.models import ConsistencyFinding, DocumentedIntent, ImplementedIntent
 from app.core.nlp.text_utils import tokenize
 
@@ -62,6 +74,9 @@ class ConsistencyChecker:
     """Compares DocumentedIntent against ImplementedIntent and returns
     the resulting ConsistencyFindings."""
 
+    def __init__(self, linguistic_analyzer: Optional[LinguisticAnalyzer] = None) -> None:
+        self._linguistic_analyzer = linguistic_analyzer or LinguisticAnalyzer()
+
     def check(
         self, documented: DocumentedIntent, implemented: ImplementedIntent
     ) -> List[ConsistencyFinding]:
@@ -69,8 +84,13 @@ class ConsistencyChecker:
         findings.extend(self._dependency_findings(documented, implemented))
 
         corpus_keywords = self._corpus_keywords(implemented)
-        findings.extend(self._requirement_findings(documented, corpus_keywords))
-        findings.extend(self._feature_findings(documented, corpus_keywords))
+        linguistic_corpus_keywords = self._linguistic_corpus_keywords(implemented)
+        findings.extend(
+            self._requirement_findings(documented, corpus_keywords, linguistic_corpus_keywords)
+        )
+        findings.extend(
+            self._feature_findings(documented, corpus_keywords, linguistic_corpus_keywords)
+        )
         return findings
 
     @staticmethod
@@ -79,6 +99,23 @@ class ConsistencyChecker:
         for blob in implemented.file_text_blobs.values():
             keywords.update(tokenize(blob))
         return keywords
+
+    def _linguistic_corpus_keywords(self, implemented: ImplementedIntent) -> Set[str]:
+        keywords: Set[str] = set()
+        for blob in implemented.file_text_blobs.values():
+            keywords.update(self._linguistic_analyzer.extract_keywords(blob))
+        return keywords
+
+    def _linguistically_traceable(
+        self, claim_text: str, linguistic_corpus_keywords: Set[str]
+    ) -> bool:
+        if not linguistic_corpus_keywords:
+            return False
+        claim_keywords = self._linguistic_analyzer.extract_keywords(claim_text)
+        if not claim_keywords:
+            return False
+        overlap_ratio = len(claim_keywords & linguistic_corpus_keywords) / len(claim_keywords)
+        return overlap_ratio >= MIN_KEYWORD_OVERLAP_RATIO
 
     @staticmethod
     def _dependency_findings(
@@ -129,9 +166,11 @@ class ConsistencyChecker:
                 )
         return findings
 
-    @staticmethod
     def _requirement_findings(
-        documented: DocumentedIntent, corpus_keywords: Set[str]
+        self,
+        documented: DocumentedIntent,
+        corpus_keywords: Set[str],
+        linguistic_corpus_keywords: Set[str],
     ) -> List[ConsistencyFinding]:
         findings: List[ConsistencyFinding] = []
         for statement in documented.requirement_statements:
@@ -140,6 +179,8 @@ class ConsistencyChecker:
                 continue
             overlap_ratio = len(keywords & corpus_keywords) / len(keywords)
             if overlap_ratio >= MIN_KEYWORD_OVERLAP_RATIO:
+                continue
+            if self._linguistically_traceable(statement.text, linguistic_corpus_keywords):
                 continue
             findings.append(
                 ConsistencyFinding(
@@ -157,9 +198,11 @@ class ConsistencyChecker:
             )
         return findings
 
-    @staticmethod
     def _feature_findings(
-        documented: DocumentedIntent, corpus_keywords: Set[str]
+        self,
+        documented: DocumentedIntent,
+        corpus_keywords: Set[str],
+        linguistic_corpus_keywords: Set[str],
     ) -> List[ConsistencyFinding]:
         findings: List[ConsistencyFinding] = []
         for feature in documented.declared_features:
@@ -168,6 +211,8 @@ class ConsistencyChecker:
                 continue
             overlap_ratio = len(keywords & corpus_keywords) / len(keywords)
             if overlap_ratio >= MIN_KEYWORD_OVERLAP_RATIO:
+                continue
+            if self._linguistically_traceable(feature, linguistic_corpus_keywords):
                 continue
             findings.append(
                 ConsistencyFinding(

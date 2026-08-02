@@ -8,6 +8,10 @@ chromadb==0.5.5
 python-dotenv==1.0.1
 python-multipart==0.0.9
 scikit-learn==1.5.2
+spacy==3.7.5
+# spacy's pretrained pipeline is not installable via pip/requirements.txt -
+# after `pip install -r requirements.txt`, also run:
+#   python -m spacy download en_core_web_sm
 pytest
 httpx
 pytest-asyncio

@@ -1,6 +1,9 @@
 @echo off
 cd /d "%~dp0"
 
+echo Freeing port 8080 if occupied...
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":8080" ^| find "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
+
 echo Starting Docker containers...
 docker compose -f infra\docker\docker-compose.yml up -d
 
@@ -16,3 +19,16 @@ echo Starting frontend...
 start "VIDUR Frontend" cmd /k "cd frontend && npm run dev"
 
 echo All VIDUR services launching in separate windows.
+echo.
+echo Come back to THIS window and press any key when you're done, to stop everything and free port 8080.
+pause >nul
+
+echo Stopping VIDUR windows...
+taskkill /F /FI "WINDOWTITLE eq VIDUR Backend*" /T >nul 2>&1
+taskkill /F /FI "WINDOWTITLE eq VIDUR Agent*" /T >nul 2>&1
+taskkill /F /FI "WINDOWTITLE eq VIDUR Frontend*" /T >nul 2>&1
+
+echo Freeing port 8080...
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":8080" ^| find "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
+
+echo Done. Port 8080 freed.

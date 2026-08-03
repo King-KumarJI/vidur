@@ -22,11 +22,6 @@ from app.core.ai_reasoning.exceptions import OllamaUnavailableError
 
 logger = get_logger("ai_reasoning.ollama_client")
 
-#: Request timeout (seconds) for a single Ollama call. Local inference
-#: on a small model is expected to complete well within this window;
-#: if it doesn't, the caller should fall back rather than hang.
-DEFAULT_TIMEOUT_SECONDS = 30.0
-
 
 class OllamaClient:
     """Minimal client for Ollama's `/api/chat` endpoint, requesting a
@@ -36,7 +31,7 @@ class OllamaClient:
         self,
         host: Optional[str] = None,
         model: Optional[str] = None,
-        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout_seconds: Optional[float] = None,
         transport: Optional[httpx.BaseTransport] = None,
     ) -> None:
         """`transport` is real (system default) unless injected, the
@@ -46,7 +41,9 @@ class OllamaClient:
         without a live Ollama instance."""
         self._host = (host or settings.OLLAMA_HOST).rstrip("/")
         self._model = model or settings.OLLAMA_MODEL
-        self._timeout_seconds = timeout_seconds
+        self._timeout_seconds = (
+            timeout_seconds if timeout_seconds is not None else settings.OLLAMA_TIMEOUT_SECONDS
+        )
         self._transport = transport
 
     def chat_json(self, system_prompt: str, user_prompt: str) -> str:

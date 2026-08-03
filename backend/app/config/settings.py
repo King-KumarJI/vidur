@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     # offline and free, per the "Real AI/ML/DL/NLP Upgrade" amendment.
     OLLAMA_HOST: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3"
+    # A genuine successful reasoning call over a large (100+ finding)
+    # inspection has been observed to take 75-96s on an 8B local model;
+    # 30s guarantees a timeout on real-world input, so this must stay
+    # well above that observed floor. Configurable (not hardcoded in
+    # OllamaClient) so it can be tuned per-deployment hardware.
+    OLLAMA_TIMEOUT_SECONDS: float = 120.0
 
     @field_validator("SECRET_KEY")
     @classmethod

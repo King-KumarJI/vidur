@@ -11,10 +11,25 @@ This is additive to, not a replacement for, RecommendationEngine's
 rule-based logic (Article 10-11): `AIReasoningEngine` falls back to
 `RecommendationEngine` automatically whenever this engine raises
 OllamaUnavailableError or OllamaResponseParsingError.
+
+Large inspection runs (100+ findings) are sent to the LLM in multiple
+smaller batches rather than one call, per a live-Playwright-confirmed
+reproduction: a single call carrying a ~39KB, ~10K-token prompt over a
+112-finding run consistently exceeded the local 8B model's 8192-token
+context window, causing Ollama to silently truncate its input. The
+model still returned genuinely well-formed JSON (so this never
+surfaced as a parse error) but of the wrong shape (e.g. `{"reasoning":
+"..."}` or `{"file_paths": [...], "summary": "..."}` instead of the
+required `{"recommendations": [...]}`), because the truncated context
+had dropped some or all of the schema instructions. Raising Ollama's
+`num_ctx`/`num_predict` alone did not fix this in reproduction (the
+model still ignored the schema at that input scale, and took longer)
+- only reducing how much the model has to reason about per call did,
+hence batching rather than a larger context window.
 """
 
 import json
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.config.logging_config import get_logger
 from app.core.ai_reasoning.enums import InsightCategory, RecommendationPriority
@@ -50,6 +65,28 @@ _SYSTEM_PROMPT = (
     "there is nothing actionable in the supplied data."
 )
 
+_BATCH_NOTE = (
+    " NOTE: this call carries only one batch of a larger inspection "
+    "run's correlation groups / dependency assessments / debugging "
+    "hypotheses - other batches contain additional items not shown "
+    "here. Do not claim this batch is the complete set of findings for "
+    "the project."
+)
+
+#: When the combined JSON-serialized size of correlation groups,
+#: dependency assessments, and debugging hypotheses exceeds this many
+#: characters, the request is split into multiple smaller Ollama calls
+#: whose recommendations are merged, instead of one call whose input
+#: risks exceeding the local model's context window (see module
+#: docstring for the reproduced failure mode this avoids).
+CHUNKING_THRESHOLD_CHARS = 6000
+
+#: Target maximum JSON-serialized character size per batch once
+#: chunking is triggered - chosen to keep each batch's prompt
+#: comfortably inside an 8K-token-context local model even alongside
+#: the system prompt and a generous response budget.
+BATCH_TARGET_CHARS = 4000
+
 _VALID_PRIORITIES = {priority.value for priority in RecommendationPriority}
 _VALID_CATEGORIES = {category.value for category in InsightCategory}
 
@@ -81,26 +118,103 @@ class LLMRecommendationEngine:
         if not correlation_groups and not dependency_assessments and not debugging_hypotheses and drift_insight is None:
             return []
 
-        user_prompt = json.dumps(
-            {
-                "correlation_groups": [group.to_dict() for group in correlation_groups],
-                "dependency_assessments": [
-                    assessment.to_dict() for assessment in dependency_assessments
-                ],
-                "debugging_hypotheses": [
-                    hypothesis.to_dict() for hypothesis in debugging_hypotheses
-                ],
-                "drift_insight": drift_insight.to_dict() if drift_insight else None,
-            },
-            default=str,
+        batches = self._make_batches(
+            correlation_groups, dependency_assessments, debugging_hypotheses, drift_insight
         )
+        multi_batch = len(batches) > 1
+        if multi_batch:
+            logger.info(
+                "AI reasoning LLM prompt split into %d batches (large inspection run).",
+                len(batches),
+            )
 
-        content = self._ollama_client.chat_json(_SYSTEM_PROMPT, user_prompt)
-        recommendations = self._parse(content)
+        recommendations: List[Recommendation] = []
+        for batch_payload in batches:
+            system_prompt = _SYSTEM_PROMPT + _BATCH_NOTE if multi_batch else _SYSTEM_PROMPT
+            user_prompt = json.dumps(batch_payload, default=str)
+            content = self._ollama_client.chat_json(system_prompt, user_prompt)
+            recommendations.extend(self._parse(content))
+
         recommendations.sort(
             key=lambda rec: (-rec.priority.weight, rec.category.value, rec.title)
         )
         return recommendations
+
+    @staticmethod
+    def _batch_payload(
+        correlation_groups: List[IssueCorrelationGroup],
+        dependency_assessments: List[DependencyImpactAssessment],
+        debugging_hypotheses: List[DebuggingHypothesis],
+        drift_insight: Optional[DriftInsight],
+    ) -> Dict[str, Any]:
+        return {
+            "correlation_groups": [group.to_dict() for group in correlation_groups],
+            "dependency_assessments": [
+                assessment.to_dict() for assessment in dependency_assessments
+            ],
+            "debugging_hypotheses": [
+                hypothesis.to_dict() for hypothesis in debugging_hypotheses
+            ],
+            "drift_insight": drift_insight.to_dict() if drift_insight else None,
+        }
+
+    @classmethod
+    def _make_batches(
+        cls,
+        correlation_groups: List[IssueCorrelationGroup],
+        dependency_assessments: List[DependencyImpactAssessment],
+        debugging_hypotheses: List[DebuggingHypothesis],
+        drift_insight: Optional[DriftInsight],
+    ) -> List[Dict[str, Any]]:
+        """Split reasoning-stage output into one or more batch payloads
+        small enough to stay well inside the local model's context
+        window. `drift_insight` (a single small object) is attached
+        only to the first batch - it never needs splitting, and
+        repeating it across every batch would risk the same
+        drift-based recommendation being independently generated (and
+        left undeduplicated) more than once."""
+        tagged: List[Tuple[str, Any]] = (
+            [("correlation_group", group) for group in correlation_groups]
+            + [("dependency_assessment", assessment) for assessment in dependency_assessments]
+            + [("debugging_hypothesis", hypothesis) for hypothesis in debugging_hypotheses]
+        )
+        sizes = [len(json.dumps(item.to_dict(), default=str)) for _, item in tagged]
+
+        if sum(sizes) <= CHUNKING_THRESHOLD_CHARS:
+            return [
+                cls._batch_payload(
+                    correlation_groups, dependency_assessments, debugging_hypotheses, drift_insight
+                )
+            ]
+
+        item_batches: List[List[Tuple[str, Any]]] = []
+        current: List[Tuple[str, Any]] = []
+        current_chars = 0
+        for (kind, item), item_chars in zip(tagged, sizes):
+            if current and current_chars + item_chars > BATCH_TARGET_CHARS:
+                item_batches.append(current)
+                current = []
+                current_chars = 0
+            current.append((kind, item))
+            current_chars += item_chars
+        if current:
+            item_batches.append(current)
+
+        payloads: List[Dict[str, Any]] = []
+        for index, item_batch in enumerate(item_batches):
+            payloads.append(
+                cls._batch_payload(
+                    correlation_groups=[item for kind, item in item_batch if kind == "correlation_group"],
+                    dependency_assessments=[
+                        item for kind, item in item_batch if kind == "dependency_assessment"
+                    ],
+                    debugging_hypotheses=[
+                        item for kind, item in item_batch if kind == "debugging_hypothesis"
+                    ],
+                    drift_insight=drift_insight if index == 0 else None,
+                )
+            )
+        return payloads
 
     @staticmethod
     def _parse(content: str) -> List[Recommendation]:

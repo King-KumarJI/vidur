@@ -184,6 +184,30 @@ def test_predict_cold_start_never_claims_trained_model_confidence():
     assert "not a trained-model prediction" in report.upcoming_session.basis
 
 
+def test_predict_upcoming_session_likelihood_always_in_percentage_range():
+    """`likelihood_score` is documented (and consumed by the frontend,
+    which renders it directly as `{value}%`) as a plain 0-100
+    percentage - never a 0-1 fraction. Covers cold-start-no-telemetry,
+    cold-start-with-activity, and warm (derived-sessions) scenarios so
+    a regression to a 0-1 fraction (or any other scale) in any branch
+    of `_predict_upcoming_session` is caught here rather than surfacing
+    as a client-side double-scaling bug (e.g. rendering "7600%")."""
+    no_telemetry_report = asyncio.run(_engine([]).predict("demo-project"))
+    assert 0.0 <= no_telemetry_report.upcoming_session.likelihood_score <= 100.0
+
+    active_snapshots = [_snapshot(_NOW - timedelta(minutes=30), typing=40.0)]
+    active_report = asyncio.run(_engine(active_snapshots).predict("demo-project"))
+    assert 0.0 <= active_report.upcoming_session.likelihood_score <= 100.0
+
+    warm_snapshots = sorted(
+        _session_snapshots(datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc), count=5)
+        + _session_snapshots(datetime(2026, 1, 6, 9, 0, tzinfo=timezone.utc), count=9),
+        key=lambda s: s.recorded_at,
+    )
+    warm_report = asyncio.run(_engine(warm_snapshots).predict("demo-project"))
+    assert 0.0 <= warm_report.upcoming_session.likelihood_score <= 100.0
+
+
 class _NaiveMongoCollection:
     """Mimics a *real* (non `tz_aware`) Motor/PyMongo collection: BSON
     date fields round-trip as naive datetimes on read even though the

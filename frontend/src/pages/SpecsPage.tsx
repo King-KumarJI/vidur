@@ -330,7 +330,7 @@ function PredictionSection() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card title="Upcoming Session">
               <p className="text-2xl font-semibold text-vidur-text">
-                {(report.upcoming_session.likelihood_score * 100).toFixed(0)}%
+                {report.upcoming_session.likelihood_score.toFixed(0)}%
               </p>
               <Badge label={report.upcoming_session.confidence} />
               {report.upcoming_session.predicted_duration_minutes != null ? (

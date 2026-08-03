@@ -18,6 +18,12 @@ start "VIDUR Agent" cmd /k "cd backend && venv\Scripts\activate.bat && python sc
 echo Starting frontend...
 start "VIDUR Frontend" cmd /k "cd frontend && npm run dev"
 
+echo Waiting for frontend to be ready...
+timeout /t 5 /nobreak >nul
+
+echo Opening VIDUR in your browser...
+start "" "http://localhost:5173"
+
 echo All VIDUR services launching in separate windows.
 echo.
 echo Come back to THIS window and press any key when you're done, to stop everything and free port 8080.
